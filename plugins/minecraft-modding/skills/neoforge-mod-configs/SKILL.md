@@ -130,5 +130,4 @@ Checked: Oct 2026 against FancyModLoader 4.0.44, NeoForge 21.1 and the sources /
 block; the Lost Cities profile order re-checked 2026-10-12 on lostcities-1.21-8.4.4.
 Limits: NeoForge 21.1 / Minecraft 1.21.1 only (older Forge keeps SERVER configs per world; Forge-era `serverconfig` rules
 differ). The per-mod blocks are valid for the named versions only.
-Changes: 2026-10-12 v34 - portability pass (pack script names labelled as examples, beta-pack facts labelled), Lost Cities
-profile precedence settled by bytecode.
+History: CHANGELOG.md next to this file (what changed, when and why).

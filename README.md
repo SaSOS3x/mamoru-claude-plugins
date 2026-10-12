@@ -23,3 +23,12 @@ Where a session reads the plugins from (checked 2026-10-12, Claude Code 2.1.294-
 Check which version a session got by comparing the plugin folder byte by byte with the commit (`git show <sha>:<path> | cmp - <file>`).
 On Windows `git hash-object` reports false differences for CRLF files (it applies core.autocrlf outside the repo).
 Development journals of the skills (skill-forge) live in the port: `_port/skills-lab/<skill>/JOURNAL.md`.
+
+Every skill folder has a `CHANGELOG.md` next to `SKILL.md`: what changed, when and, above all, why (new entries at the end).
+It ships with the plugin but is not loaded when the skill runs (`claude plugin details` shows the same on-invoke cost with it).
+Read it before changing a skill: a decision with a recorded reason is not reverted without a new argument.
+Before every commit run `python check_skills.py`: it fails when a changed skill has no new CHANGELOG entry, when SKILL.md lacks
+a name or a description of at most 1024 characters, or when a text file has CRLF line endings.
+
+Shared scripts of the skills can live as registered copies in a project's own environment (one folder with everything its
+agents use, named in its CLAUDE.md): see `project-journal`, section "Среда проекта", and its `scripts/project_env.py`.

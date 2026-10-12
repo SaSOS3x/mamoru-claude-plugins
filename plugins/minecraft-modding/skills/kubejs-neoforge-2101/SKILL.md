@@ -233,4 +233,4 @@ Checked: Oct 2026 against KubeJS 2101.7.2 build.377 + Rhino 2101.2.8 build.91 so
 skill portable (project paths and status removed, examples labelled).
 Limits: KubeJS 2101 / NeoForge 1.21.1 only; for 1.20.1 or 1.18.2 KubeJS the renames and the event table differ. Items marked
 "unverified" were tested offline only.
-Changes: 2026-10-12 v34 - portability pass (no hard-coded paths of one PC, project examples labelled).
+History: CHANGELOG.md next to this file (what changed, when and why).
