@@ -1,0 +1,21 @@
+{
+  "name": "mamoru-plugins",
+  "description": "Mamoru's own Claude Code plugins",
+  "owner": {
+    "name": "Mamoru"
+  },
+  "plugins": [
+    {
+      "name": "minecraft-modding",
+      "source": "./plugins/minecraft-modding",
+      "description": "Minecraft 1.21.1 NeoForge modpack work: KubeJS 2101 scripts, mod configs, porting a pack from 1.20.1 / 1.18.2, Lost Cities biome zones, worldgen density, TPS / FPS optimization. Worked example: the DeceasedCraft port.",
+      "version": "1.0.0"
+    },
+    {
+      "name": "agent-workflow",
+      "source": "./plugins/agent-workflow",
+      "description": "How Claude Code works with agents and learns from its errors: model choice and briefs for subagents, error post-mortems, decision conflicts shown to the user, a session error audit with scripts, Windows shell traps (beta).",
+      "version": "1.0.0"
+    }
+  ]
+}
