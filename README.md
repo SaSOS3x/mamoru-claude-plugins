@@ -17,7 +17,8 @@ Where a session reads the plugins from (checked 2026-10-12, Claude Code 2.1.294-
   After a change: commit, `python refresh_local.py`, new session (`/reload-plugins` does not switch a loaded plugin to the new version).
 - Code tab of the Claude desktop app: the copies installed on the claude.ai account
   (`%APPDATA%/Claude/local-agent-mode-sessions/<org>/<user>/rpm/plugin_<id>/`, refreshed when the app starts); they shadow the local
-  install of the same names. After a change: commit, push, update the plugins on claude.ai (Customize > Plugins), fully restart the app.
+  install of the same names. A plugin that is not on the account comes from the local install, as in a terminal.
+  After a change: commit, push, update the plugins on claude.ai (Customize > Plugins), fully restart the app.
 
 Check which version a session got by comparing the plugin folder byte by byte with the commit (`git show <sha>:<path> | cmp - <file>`).
 On Windows `git hash-object` reports false differences for CRLF files (it applies core.autocrlf outside the repo).

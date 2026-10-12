@@ -26,8 +26,10 @@ hands over a batch project (often a zip with a README), start here.
 **Calling the bundled scripts.** They live in this skill's folder, not in the user's project,
 so a bare `python scripts/x.py` fails from the project folder. Every command below uses the
 full path of the skill folder (already filled in when you read this) and is run from the
-project folder, in Git Bash and in PowerShell alike. Use `python`, never `python3` (on Windows
-`python3` is often a Microsoft Store stub that prints nothing useful).
+project folder, in Git Bash and in PowerShell alike. That is why each command is one line: a
+trailing `\` continues a line only in bash, PowerShell rejects it (`Missing expression after
+unary operator '--'`; its own continuation character is the backtick). Use `python`, never
+`python3` (on Windows `python3` is often a Microsoft Store stub that prints nothing useful).
 
 ---
 
@@ -207,8 +209,7 @@ Or from the shell:
 
 ```bash
 python "${CLAUDE_SKILL_DIR}/scripts/crlf_edit.py" report script.cmd     # EOL/encoding/BOM
-python "${CLAUDE_SKILL_DIR}/scripts/crlf_edit.py" replace script.cmd \
-    --old-file old.txt --new-file new.txt
+python "${CLAUDE_SKILL_DIR}/scripts/crlf_edit.py" replace script.cmd --old-file old.txt --new-file new.txt
 ```
 
 `replace` reads `--old-file`/`--new-file` as bytes and gives both the file's line ending, so
@@ -241,23 +242,22 @@ python "${CLAUDE_SKILL_DIR}/scripts/extract_ps.py" script.cmd --show    # fast s
 this one process only; without it a default Windows refuses to run a `.ps1`.
 
 ```bash
-powershell.exe -NoProfile -ExecutionPolicy Bypass \
-    -File "${CLAUDE_SKILL_DIR}/scripts/Validate-Embedded.ps1" \
-    -CmdFile script.cmd -Harness tests/Run-Tests.ps1 -RunHarness
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_SKILL_DIR}/scripts/Validate-Embedded.ps1" -CmdFile script.cmd -Harness tests/Run-Tests.ps1 -RunHarness
 ```
 
 Exit codes: 0 valid, 1 a snippet or the harness is bad, 2 a named file does not exist. A line
 `WARNING: no embedded PowerShell found` means nothing was parsed (the file has none, or its
 `-Command` body is not written in double quotes) - it is not a pass. Inside a snippet `\"` is
-read as a quote, the way `powershell.exe` reads its command line.
+read as a quote, the way `powershell.exe` reads its command line. When its output goes to a
+pipe (Git Bash, an agent's shell tool) the script writes UTF-8, so the parser's localized
+messages stay readable; the console encoding is restored on exit.
 
 **On Linux** (a sandbox with no `pwsh`) install the Linux build first. The script refuses on
 Windows and macOS (it installs a Linux binary into `/opt/pwsh`):
 
 ```bash
 bash "${CLAUDE_SKILL_DIR}/scripts/setup_pwsh.sh"    # Linux only; idempotent; installs to /opt/pwsh
-/opt/pwsh/pwsh -NoProfile -File "${CLAUDE_SKILL_DIR}/scripts/Validate-Embedded.ps1" \
-    -CmdFile script.cmd -Harness tests/Run-Tests.ps1 -RunHarness
+/opt/pwsh/pwsh -NoProfile -File "${CLAUDE_SKILL_DIR}/scripts/Validate-Embedded.ps1" -CmdFile script.cmd -Harness tests/Run-Tests.ps1 -RunHarness
 ```
 
 Only PowerShell's own parser proves a one-liner valid; the second pass is the real check.

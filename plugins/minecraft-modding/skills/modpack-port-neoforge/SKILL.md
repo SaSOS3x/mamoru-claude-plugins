@@ -143,7 +143,7 @@ Reinstall quests after the mods they reference exist (FTB Quests turns unknown i
 - A mod without a 1.21.1 version (DeceasedCraft: Apocalypse Now) can be recreated under its OLD ids by your own code, so
   the old buildings, loot and quests keep working. In the DeceasedCraft port: `apocalypsenow:*` melee = KubeJS items, armor =
   `deceasedcraft-armor` (Java), blocks / food / supplies = `deceasedcraft-an` (Java, read from the MCreator jar with javap, SRG
-  names) + `an_world.py` restoring palettes and loot. Weapon / armor loot stays in the tiered gear pools `deceasedcraft:gear/t1..t4`
+  names) + `an_world.py` (`_port/tools/an_blocks/`) restoring palettes and loot. Weapon / armor loot stays in the tiered gear pools `deceasedcraft:gear/t1..t4`
   (by building tier). The stages of that replacement are in the project journal.
 
 ## Lessons that cost hours

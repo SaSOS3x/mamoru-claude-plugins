@@ -42,6 +42,21 @@ param(
 $ErrorActionPreference = 'Stop'
 $failures = 0
 
+# Parser messages are localized. When the output goes to a pipe (Git Bash, an agent's shell tool) Windows
+# PowerShell encodes it in the OEM code page (cp866 on a Russian Windows) and the caller shows garbage.
+# Use UTF-8 for this run only and give the console its encoding back on every exit.
+$script:prevOutEnc = $null
+if ([Console]::IsOutputRedirected) {
+    try {
+        $script:prevOutEnc = [Console]::OutputEncoding
+        [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+    } catch { $script:prevOutEnc = $null }
+}
+function Exit-Script([int] $code) {
+    if ($script:prevOutEnc) { try { [Console]::OutputEncoding = $script:prevOutEnc } catch { } }
+    exit $code
+}
+
 function Test-Snippet([string] $code) {
     $errs = $null
     [System.Management.Automation.Language.Parser]::ParseInput(
@@ -54,7 +69,7 @@ function Test-Snippet([string] $code) {
 # under $ErrorActionPreference = 'Stop' and turn the 2 into a 1, so print instead.
 if (-not (Test-Path -LiteralPath $CmdFile)) {
     [Console]::Error.WriteLine("CmdFile not found: $CmdFile")
-    exit 2
+    Exit-Script 2
 }
 
 $text = [IO.File]::ReadAllText((Resolve-Path -LiteralPath $CmdFile))
@@ -86,7 +101,7 @@ foreach ($m in $found) {
 if ($Harness) {
     if (-not (Test-Path -LiteralPath $Harness)) {
         [Console]::Error.WriteLine("Harness not found: $Harness")
-        exit 2
+        Exit-Script 2
     }
     $herrs = $null
     [System.Management.Automation.Language.Parser]::ParseFile(
@@ -113,7 +128,7 @@ if ($Harness) {
 Write-Host ""
 if ($failures -gt 0) {
     Write-Host "FAILED: $failures problem(s)."
-    exit 1
+    Exit-Script 1
 }
 if ($found.Count -eq 0) {
     # Nothing was parsed: do not print the green line. Either the file has no
@@ -121,7 +136,7 @@ if ($found.Count -eq 0) {
     # body is not in double quotes, or it is built from variables).
     Write-Host "WARNING: no embedded PowerShell found in $CmdFile - nothing was validated."
     if ($Harness) { Write-Host "(The harness was checked above.)" }
-    exit 0
+    Exit-Script 0
 }
 Write-Host "All embedded PowerShell valid ($($found.Count) command(s) checked)."
-exit 0
+Exit-Script 0

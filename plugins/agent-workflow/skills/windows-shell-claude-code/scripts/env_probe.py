@@ -2,7 +2,10 @@
 """env_probe.py - one call that shows the Windows / Git Bash / Python / JDK traps of THIS shell session.
 
   python env_probe.py [DIR]      DIR = folder to scan for stdlib-shadowing .py files (default: current folder)
-Prints OK / WARN lines, ASCII only, always exits 0 (it is a report, not a gate). Run it first in a new project.
+  python env_probe.py -h | --help
+Prints OK / WARN lines, ASCII only. Exit 0 even with WARN lines (it is a report, not a gate: on a typical Windows PC some
+WARN is always there, and a non-zero code would stop `&&` chains); read the WARN lines. Exit 2 for an unknown option.
+Run it first in a new project.
 Checks: python stdout and open() encodings (+ PYTHONIOENCODING / PYTHONUTF8), `python3` being the Microsoft Store stub,
 JAVA_HOME vs the java / javac / javap / jar that PATH really picks, .py files named like stdlib modules.
 """
@@ -77,11 +80,18 @@ def main(scan_dir):
         line('WARN', f'{scan_dir}: folder does not exist (or is not a folder), nothing was scanned; check the path')
     elif shadow:
         line('WARN', f'{scan_dir}: files named like stdlib modules {shadow}: they hide the real module for every '
-                     'script in this folder and for `python -c` run here; rename or use `python -I`')
+                     'script in this folder and for `python -c` run here; rename or use `python -I -X utf8`')
     else:
         line('OK', f'{scan_dir}: no stdlib-named .py files')
     return 0
 
 
 if __name__ == '__main__':
-    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else '.'))
+    arg = sys.argv[1] if len(sys.argv) > 1 else '.'
+    if arg in ('-h', '--help'):
+        print(__doc__)
+        sys.exit(0)
+    if arg.startswith('-'):
+        print(f'unknown option {arg}\n{__doc__}')
+        sys.exit(2)
+    sys.exit(main(arg))

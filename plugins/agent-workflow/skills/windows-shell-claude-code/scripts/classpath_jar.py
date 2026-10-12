@@ -3,14 +3,15 @@
 
   python classpath_jar.py OUT.jar ENTRY [ENTRY ...] [--skip-missing]
   ENTRY = a jar, a directory, a glob (mods/*.jar, libs/**/*.jar) or @listfile (one path per line).
-  A missing entry (or a glob that matches nothing) is an error, exit 1, nothing written; --skip-missing only warns.
+  A missing entry (or a glob that matches nothing) is an error, exit 1, nothing written; --skip-missing only warns
+  (use it for an old list file that still names jars which are gone).
   Then:  javap -cp OUT.jar some.pkg.Class      (javap has no @argfile; java / javac do: java @args.txt)
 
 Why: javap / java -cp with a 35k-char classpath fails on Windows with "Argument list too long" (CreateProcess ~32767
 chars). The JVM follows Class-Path of a jar on the classpath, so the long list moves into the file.
 Details: entries become file:/// URLs (spaces -> %20), directories get a trailing '/', manifest lines are wrapped at
 72 bytes with a leading space on continuation lines (the manifest spec). Needs only the stdlib; ASCII-only output.
-Exit 0 ok, 1 usage / missing entry or @file / nothing matched.
+Exit 0 ok, 1 usage / missing entry or @file / nothing matched / OUT.jar cannot be written (e.g. its folder is missing).
 """
 import glob
 import pathlib
@@ -51,6 +52,9 @@ def wrap(name, value):
 
 
 def main(argv):
+    if argv[:1] in (['-h'], ['--help']):
+        print(__doc__)
+        return 0
     if len(argv) < 2:
         print(__doc__)
         return 1
@@ -77,8 +81,16 @@ def main(argv):
         print('nothing matched')
         return 1
     manifest = b'Manifest-Version: 1.0\r\n' + wrap('Class-Path', ' '.join(to_url(p) for p in items)) + b'\r\n'
-    with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
-        z.writestr('META-INF/MANIFEST.MF', manifest)
+    try:
+        with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
+            z.writestr('META-INF/MANIFEST.MF', manifest)
+    except OSError as e:
+        print(f'error: cannot write {out} ({e.strerror or e}); does its folder exist?')
+        try:
+            pathlib.Path(out).unlink()  # no half-written jar left behind
+        except OSError:
+            pass
+        return 1
     print(f'{out}: {len(items)} entries, manifest {len(manifest)} bytes')
     return 0
 
