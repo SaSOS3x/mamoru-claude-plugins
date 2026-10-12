@@ -1,0 +1,7 @@
+{
+  "name": "writing-and-scripts",
+  "author": {
+    "name": "Mamoru"
+  },
+  "description": "Readable documents for people (plain language, few lists, re-checked text) and large Windows batch / cmd scripts with embedded PowerShell (menu tools, tweakers, installers)."
+}
