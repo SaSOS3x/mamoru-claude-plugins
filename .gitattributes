@@ -1,0 +1,4 @@
+# Windows scripts are stored byte-exact: cmd parsing depends on CRLF, tests compare bytes.
+*.cmd -text
+*.bat -text
+*.ps1 -text
