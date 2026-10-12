@@ -1,29 +1,34 @@
-# Changelog: windows-shell-dev
+# История изменений: windows-shell-dev
 
-What changed in this skill, when and why. New entries go to the end. The skill was made by the user; its history before the
-marketplace is not recorded here.
+Что менялось в навыке, когда и почему. Новые записи добавляются в конец. Навык сделал пользователь, его история до маркетплейса
+здесь не записана.
 
-## 2026-10-12 | Added to the marketplace
-What: the user's skill added to the plugin writing-and-scripts unchanged.
-Why: the user's decision to keep all skills in one marketplace shared by projects.
+## 2026-10-12 | Добавлен в маркетплейс
+Что: навык пользователя добавлен в плагин writing-and-scripts без изменений.
+Почему: решение пользователя держать все навыки в одном маркетплейсе, общем для проектов.
 
-## 2026-10-12 | Test .cmd files stored byte-exact
-What: `.gitattributes` of the marketplace keeps `*.cmd`, `*.bat` and `*.ps1` byte-exact.
-Why: with core.autocrlf the regression `.cmd` files were stored with LF, and the tests compare bytes.
-Checked: 12/12 regression tests.
+## 2026-10-12 | Тестовые .cmd хранятся байт в байт
+Что: `.gitattributes` маркетплейса хранит `*.cmd`, `*.bat` и `*.ps1` без перевода окончаний строк.
+Почему: из-за core.autocrlf регрессионные `.cmd` попали в git с LF, а тесты сравнивают байты.
+Проверено: 12 из 12 регрессионных тестов.
 
-## 2026-10-12 | Fixes from the plugin check
-What: every bundled-script call uses the skill folder variable; crlf_edit.py `replace` reads bytes, keeps CRLF and exits 1 when
-nothing would change or lone LF would appear; Validate-Embedded.ps1 reads `\"` as a quote, warns when nothing was validated and
-exits 2 for a missing file; setup_pwsh.sh refuses outside Linux and the text gives the Windows way; `python` instead of `python3`.
-Why: an independent check (plugin-check, 2026-10-12): about 15 calls `python scripts/x.py` failed from the project folder,
-crlf_edit wrote bare LF into a CRLF file with exit 0, Validate-Embedded gave a false BAD on `\"` and a green result for a file
-without any PowerShell, setup_pwsh.sh installed a Linux build on Windows.
-Checked: 12/12 regression tests; the recheck repeated every case.
+## 2026-10-12 | Исправления по проверке плагинов
+Что: все вызовы скриптов идут через переменную папки навыка. `replace` в crlf_edit.py читает байты, сохраняет CRLF и выходит с
+кодом 1, если ничего не меняется или появились бы одиночные LF. Validate-Embedded.ps1 читает `\"` как кавычку, предупреждает,
+если проверять было нечего, и выходит с кодом 2 для несуществующего файла. setup_pwsh.sh отказывается работать вне Linux, а в
+тексте есть путь для Windows. Вместо `python3` везде `python`.
+Почему: независимая проверка (plugin-check, 2026-10-12). Около 15 вызовов `python scripts/x.py` падали из папки проекта.
+crlf_edit записывал одиночные LF в файл с CRLF и выходил с кодом 0. Validate-Embedded давал ложный BAD на `\"` и зелёный итог
+для файла без PowerShell. setup_pwsh.sh ставил Linux-сборку на Windows.
+Проверено: 12 из 12 регрессионных тестов, повторная проверка прогнала каждый случай.
 
-## 2026-10-12 | One-line commands; UTF-8 output of Validate-Embedded.ps1
-What: every command is one line; Validate-Embedded.ps1 writes UTF-8 when its output goes to a pipe and restores the console
-encoding on every exit.
-Why: the recheck (plugin-recheck, 2026-10-12): PowerShell rejects a trailing backslash (`Missing expression after unary operator
-'--'`) although the text promised Git Bash and PowerShell alike; through a pipe the localized parser messages arrived in cp866.
-Checked: the old and the new validator on the same broken file (garbage before, readable text after); 12/12 regression tests.
+## 2026-10-12 | Команды в одну строку, вывод Validate-Embedded.ps1 в UTF-8
+Что: каждая команда записана в одну строку. Validate-Embedded.ps1 пишет UTF-8, когда вывод идёт в канал, и на каждом выходе
+возвращает консоли прежнюю кодировку.
+Почему: повторная проверка (plugin-recheck, 2026-10-12). PowerShell не принимает перенос обратным слэшем (`Missing expression
+after unary operator '--'`), хотя текст обещал работу и в Git Bash, и в PowerShell. Через канал сообщения парсера приходили в cp866.
+Проверено: старый и новый валидатор на одном и том же сломанном файле (до правки мусор, после читаемый текст), 12 из 12 тестов.
+
+## 2026-10-12 | Журнал изменений на русском
+Что: записи этого файла переведены на русский.
+Почему: решение пользователя вести журналы изменений всех навыков по-русски, ведь записи «почему» прежде всего для него.

@@ -27,8 +27,7 @@ Development journals of the skills (skill-forge) live in the port: `_port/skills
 Every skill folder has a `CHANGELOG.md` next to `SKILL.md`: what changed, when and, above all, why (new entries at the end).
 It ships with the plugin but is not loaded when the skill runs (`claude plugin details` shows the same on-invoke cost with it).
 Read it before changing a skill: a decision with a recorded reason is not reverted without a new argument.
-Before every commit run `python check_skills.py`: it fails when a changed skill has no new CHANGELOG entry, when SKILL.md lacks
-a name or a description of at most 1024 characters, or when a text file has CRLF line endings.
+Before every commit run `python check_skills.py`: it fails when a changed skill has no new CHANGELOG entry.
 
-Shared scripts of the skills can live as registered copies in a project's own environment (one folder with everything its
-agents use, named in its CLAUDE.md): see `project-journal`, section "Среда проекта", and its `scripts/project_env.py`.
+Where a script lives depends on where it repeats: in one project's work it lives in that project (`project-journal`, section
+"Среда проекта"); needed by a skill and useful in any project, it lives in the skill's `scripts/`. No copies.

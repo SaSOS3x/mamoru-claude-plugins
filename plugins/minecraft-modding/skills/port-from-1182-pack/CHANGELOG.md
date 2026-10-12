@@ -1,22 +1,25 @@
-# Changelog: port-from-1182-pack
+# История изменений: port-from-1182-pack
 
-What changed in this skill, when and why. New entries go to the end. The skill grew out of the DeceasedCraft 1.21.1 port
-(wastelands 2026-10-02, Abyss 2026-10-07); the history of that work is in the port's `_port/HANDOFF.md`, which is not part of
-the plugin.
+Что менялось в навыке, когда и почему. Новые записи добавляются в конец. Навык вырос из порта DeceasedCraft на 1.21.1 (пустоши
+2026-10-02, Abyss 2026-10-07). История той работы лежит в `_port/HANDOFF.md` порта, в плагин она не входит.
 
-## 2026-10 | Created in the DeceasedCraft 1.21.1 port
-What: porting content of a 1.18.2 Forge pack as data: Lost Cities 1.18 buildings and styles, KubeJS 1802 scripts, In Control /
-FX Control configs, armorsets, BOP 1.18 biomes, custom dimensions, noise settings, portals.
-Why: the wastelands and the Abyss dimension of DeceasedCraft 5.5.5 had to come back in the 1.21.1 port.
+## 2026-10 | Создан в порте DeceasedCraft 1.21.1
+Что: перенос содержимого сборки Forge 1.18.2 данными: здания и стили Lost Cities 1.18, скрипты KubeJS 1802, конфиги In Control
+и FX Control, armorsets, биомы BOP 1.18, свои измерения, noise settings, порталы.
+Почему: пустоши и измерение Abyss из DeceasedCraft 5.5.5 нужно было вернуть в порт на 1.21.1.
 
-## 2026-10-12 | v33 and v34: description and method only
-What: v33 gave the description the phrases users actually say and moved dated port state into
-`_port/reports/skills_moved_state_v33.md`; the v34 second pass added an opening label, a "typical layout" bullet and labelled
-examples. Removed text: `_port/reports/skills_removed_text_v34.md`.
-Why: a separate review (Fable) found no trigger phrases in the description and method mixed with project state; the skill was
-going into a plugin for every project.
-Checked: the reworked text has not been run by a clean-context agent.
+## 2026-10-12 | v33 и v34: описание и только метод
+Что: v33 добавила в описание фразы, которые говорит пользователь, и перенесла датированное состояние порта в
+`_port/reports/skills_moved_state_v33.md`. Второй проход v34 добавил вводную пометку, пункт о типичной раскладке и подписал
+примеры. Вынесенный текст лежит в `_port/reports/skills_removed_text_v34.md`.
+Почему: отдельная проверка (Fable) нашла описание без фраз-триггеров и метод вперемешку с состоянием проекта, а навык уходил в
+плагин для всех проектов.
+Проверено: переписанный текст исполнитель с чистым контекстом не проходил.
 
-## 2026-10-12 | In the mamoru-plugins marketplace
-What: the skill lives in the plugin minecraft-modding.
-Why: the user's decision to keep all skills and tools in one marketplace shared by projects.
+## 2026-10-12 | В маркетплейсе mamoru-plugins
+Что: навык лежит в плагине minecraft-modding.
+Почему: решение пользователя держать все навыки и инструменты в одном маркетплейсе, общем для проектов.
+
+## 2026-10-12 | Журнал изменений на русском
+Что: записи этого файла переведены на русский.
+Почему: решение пользователя вести журналы изменений всех навыков по-русски, ведь записи «почему» прежде всего для него.

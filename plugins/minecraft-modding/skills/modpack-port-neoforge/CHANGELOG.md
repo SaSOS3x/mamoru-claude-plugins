@@ -1,24 +1,28 @@
-# Changelog: modpack-port-neoforge
+# История изменений: modpack-port-neoforge
 
-What changed in this skill, when and why. New entries go to the end. The skill grew out of the DeceasedCraft 1.21.1 port; the
-history of that work is in the port's `_port/HANDOFF.md`, which is not part of the plugin.
+Что менялось в навыке, когда и почему. Новые записи добавляются в конец. Навык вырос из порта DeceasedCraft на 1.21.1. История
+той работы лежит в `_port/HANDOFF.md` порта, в плагин она не входит.
 
-## 2026-10 | Created in the DeceasedCraft 1.21.1 port
-What: the method and toolchain of porting a 1.20.1 Forge pack to 1.21.1 NeoForge: data-mod jar from the old pack's data,
-Lost Cities buildings and palettes, loot, tags, FTB Quests chapters, replacing a mod that has no 1.21.1 version.
-Why: the port repeated the same conversion steps chapter after chapter.
+## 2026-10 | Создан в порте DeceasedCraft 1.21.1
+Что: метод и инструменты переноса сборки с Forge 1.20.1 на NeoForge 1.21.1: дата-мод из данных старой сборки, здания и палитры
+Lost Cities, лут, теги, главы FTB Quests, замена мода, у которого нет версии под 1.21.1.
+Почему: порт повторял одни и те же шаги конвертации глава за главой.
 
-## 2026-10-12 | v33 and v34: method only
-What: v33 moved the dated port state into `_port/reports/skills_moved_state_v33.md`; the v34 second pass rewrote the text as a
-method (Cowork section and project state removed, a roles block added, examples labelled). Removed text:
+## 2026-10-12 | v33 и v34: только метод
+Что: v33 перенесла датированное состояние порта в `_port/reports/skills_moved_state_v33.md`. Второй проход v34 переписал текст
+как метод: раздел про Cowork и состояние проекта убраны, добавлен блок ролей, примеры подписаны. Вынесенный текст лежит в
 `_port/reports/skills_removed_text_v34.md`.
-Why: a separate review (Fable) found method and project state mixed; the skill was going into a plugin for every project.
-Checked: the reworked text has not been run by a clean-context agent.
+Почему: отдельная проверка (Fable) нашла смешение метода и состояния проекта, а навык уходил в плагин для всех проектов.
+Проверено: переписанный текст исполнитель с чистым контекстом не проходил.
 
-## 2026-10-12 | In the mamoru-plugins marketplace
-What: the skill lives in the plugin minecraft-modding.
-Why: the user's decision to keep all skills and tools in one marketplace shared by projects.
+## 2026-10-12 | В маркетплейсе mamoru-plugins
+Что: навык лежит в плагине minecraft-modding.
+Почему: решение пользователя держать все навыки и инструменты в одном маркетплейсе, общем для проектов.
 
-## 2026-10-12 | Folder of an_world.py
-What: `an_world.py` is named with its folder `_port/tools/an_blocks/`.
-Why: the plugin recheck found the script named without a path, so a reader could not find it.
+## 2026-10-12 | Папка an_world.py
+Что: у `an_world.py` указана папка `_port/tools/an_blocks/`.
+Почему: повторная проверка плагинов нашла скрипт без пути, и читатель не мог его найти.
+
+## 2026-10-12 | Журнал изменений на русском
+Что: записи этого файла переведены на русский.
+Почему: решение пользователя вести журналы изменений всех навыков по-русски, ведь записи «почему» прежде всего для него.

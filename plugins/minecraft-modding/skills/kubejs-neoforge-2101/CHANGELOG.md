@@ -1,28 +1,32 @@
-# Changelog: kubejs-neoforge-2101
+# История изменений: kubejs-neoforge-2101
 
-What changed in this skill, when and why. New entries go to the end. The skill grew out of the DeceasedCraft 1.21.1 port; the
-history of that work is in the port's `_port/HANDOFF.md`, which is not part of the plugin.
+Что менялось в навыке, когда и почему. Новые записи добавляются в конец. Навык вырос из порта DeceasedCraft на 1.21.1. История
+той работы лежит в `_port/HANDOFF.md` порта, в плагин она не входит.
 
-## 2026-10 | Created in the DeceasedCraft 1.21.1 port
-What: KubeJS 2101 / Rhino traps, renamed methods, event timing, recipes and item changes collected while porting armor, melee,
-recipes, hordes and config seeding.
-Why: the same Rhino and KubeJS mistakes kept costing attempts; each fact here was checked on KubeJS 2101.7.2 build.377 and
-Rhino 2101.2.8 build.91 (sources and offline Rhino runs).
+## 2026-10 | Создан в порте DeceasedCraft 1.21.1
+Что: ловушки KubeJS 2101 и Rhino, переименованные методы, порядок событий, рецепты и изменение предметов, собранные при переносе
+брони, оружия ближнего боя, рецептов, орд и начальных конфигов.
+Почему: одни и те же ошибки Rhino и KubeJS стоили попыток снова и снова. Каждый факт проверен на KubeJS 2101.7.2 build.377 и
+Rhino 2101.2.8 build.91 (исходники и прогоны Rhino без игры).
 
-## 2026-10-12 | v33: project state moved out
-What: dated state of the port moved into the port's report `_port/reports/skills_moved_state_v33.md`.
-Why: a separate review (Fable) found method and project state mixed in the skills; state belongs in the project journal.
+## 2026-10-12 | v33: состояние проекта вынесено из навыка
+Что: датированное состояние порта перенесено в отчёт порта `_port/reports/skills_moved_state_v33.md`.
+Почему: отдельная проверка навыков (Fable) нашла, что в них смешаны метод и состояние проекта, а состоянию место в дневнике.
 
-## 2026-10-12 | v34: portability pass
-What: no hard-coded paths of one PC, project examples labelled as examples, a Passport block. Removed text is kept in
+## 2026-10-12 | v34: подготовка к плагину
+Что: нет жёстких путей одного ПК, примеры порта подписаны как примеры, добавлен паспорт. Вынесенный текст лежит в
 `_port/reports/skills_removed_text_v34.md`.
-Why: the skill was going into a plugin used by every project.
+Почему: навык уходил в плагин для всех проектов.
 
-## 2026-10-12 | In the mamoru-plugins marketplace
-What: the skill lives in the plugin minecraft-modding.
-Why: the user's decision to keep all skills and tools in one marketplace shared by projects.
+## 2026-10-12 | В маркетплейсе mamoru-plugins
+Что: навык лежит в плагине minecraft-modding.
+Почему: решение пользователя держать все навыки и инструменты в одном маркетплейсе, общем для проектов.
 
-## 2026-10-12 | History moved from the Passport into this file
-What: the "Changes" line of the Passport moved here; the Passport points to this file.
-Why: the user's decision to keep a changelog in every skill with "why" as its main field. The file ships with the plugin but is
-not loaded when the skill runs, so the history costs no tokens.
+## 2026-10-12 | История изменений вынесена из паспорта в этот файл
+Что: строка Changes паспорта перенесена сюда, в паспорте осталась ссылка на этот файл.
+Почему: решение пользователя вести в каждом навыке журнал изменений с главным полем «почему». Файл едет с плагином, но при вызове
+навыка не загружается и не стоит токенов.
+
+## 2026-10-12 | Журнал изменений на русском
+Что: записи этого файла переведены на русский.
+Почему: решение пользователя вести журналы изменений всех навыков по-русски, ведь записи «почему» прежде всего для него.

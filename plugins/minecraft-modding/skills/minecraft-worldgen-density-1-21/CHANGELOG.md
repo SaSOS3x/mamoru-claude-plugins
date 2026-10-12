@@ -1,21 +1,27 @@
-# Changelog: minecraft-worldgen-density-1-21
+# История изменений: minecraft-worldgen-density-1-21
 
-What changed in this skill, when and why. New entries go to the end. The skill grew out of the DeceasedCraft 1.21.1 port; the
-history of that work is in the port's `_port/HANDOFF.md`, which is not part of the plugin.
+Что менялось в навыке, когда и почему. Новые записи добавляются в конец. Навык вырос из порта DeceasedCraft на 1.21.1. История
+той работы лежит в `_port/HANDOFF.md` порта, в плагин она не входит.
 
-## 2026-10 | Created in the DeceasedCraft 1.21.1 port
-What: wrapping density functions, reading noise_settings, TerraBlender regions, fitting land to the Lost Cities height window,
-measuring heights offline with the game's own code.
-Why: the terrain was too mountainous for Lost Cities, and changes had to be measured without starting the game.
+## 2026-10 | Создан в порте DeceasedCraft 1.21.1
+Что: обёртки density functions, чтение noise_settings, регионы TerraBlender, подгонка суши под окно высот Lost Cities, замер
+высот без запуска игры её же кодом.
+Почему: рельеф был слишком гористым для Lost Cities, а изменения нужно было мерить без запуска игры.
 
-## 2026-10-12 | v33: description with trigger phrases, project state moved out
-What: the description got the phrases users actually say; dated port state moved into `_port/reports/skills_moved_state_v33.md`.
-Why: a separate review (Fable) found that the description had no trigger phrases and that method and project state were mixed.
+## 2026-10-12 | v33: описание с фразами-триггерами, состояние проекта вынесено
+Что: в описание добавлены фразы, которые говорит пользователь. Датированное состояние порта перенесено в
+`_port/reports/skills_moved_state_v33.md`.
+Почему: отдельная проверка (Fable) нашла, что в описании нет фраз-триггеров, а метод смешан с состоянием проекта.
 
-## 2026-10-12 | v34: portability pass
-What: offline measuring section generalised, port examples labelled. Removed text: `_port/reports/skills_removed_text_v34.md`.
-Why: the skill was going into a plugin for every project.
+## 2026-10-12 | v34: подготовка к плагину
+Что: раздел о замерах без игры обобщён, примеры порта подписаны. Вынесенный текст лежит в
+`_port/reports/skills_removed_text_v34.md`.
+Почему: навык уходил в плагин для всех проектов.
 
-## 2026-10-12 | In the mamoru-plugins marketplace
-What: the skill lives in the plugin minecraft-modding.
-Why: the user's decision to keep all skills and tools in one marketplace shared by projects.
+## 2026-10-12 | В маркетплейсе mamoru-plugins
+Что: навык лежит в плагине minecraft-modding.
+Почему: решение пользователя держать все навыки и инструменты в одном маркетплейсе, общем для проектов.
+
+## 2026-10-12 | Журнал изменений на русском
+Что: записи этого файла переведены на русский.
+Почему: решение пользователя вести журналы изменений всех навыков по-русски, ведь записи «почему» прежде всего для него.

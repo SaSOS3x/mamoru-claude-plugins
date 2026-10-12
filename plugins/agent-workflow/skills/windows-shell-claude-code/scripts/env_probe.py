@@ -59,8 +59,10 @@ def main(scan_dir):
         if not exe:
             line('INFO', f'{tool}: not on PATH')
             continue
-        ver = java_version(exe) if tool != 'jar' else '(see path)'
-        versions[tool] = ver
+        if tool == 'jar':  # jar has no -version; the JDK folder in its path tells the version
+            line('INFO', f'jar: {exe}')
+            continue
+        versions[tool] = ver = java_version(exe)
         line('INFO', f'{tool}: {exe} -> {ver}')
     majors = {v.split('.')[0] for k, v in versions.items() if k != 'jar' and v[:1].isdigit()}
     if len(majors) > 1:
