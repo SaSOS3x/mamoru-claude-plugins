@@ -11,5 +11,7 @@ the DeceasedCraft port (`_port/tools/skills/`) and re-upload the zips to claude.
 
 Install (user scope): `claude plugin marketplace add <this folder>`, then `claude plugin install minecraft-modding@mamoru-plugins` and
 `claude plugin install agent-workflow@mamoru-plugins`,
-`claude plugin install writing-and-scripts@mamoru-plugins`. Edits apply at the next session start (or /reload-plugins).
+`claude plugin install writing-and-scripts@mamoru-plugins` (or `python refresh_local.py --install`).
+Claude Code runs the plugins from its cache (`~/.claude/plugins/cache/mamoru-plugins/<plugin>/<commit SHA>/`), not from this
+folder: after a change commit it, run `python refresh_local.py` and start a new session. claude.ai picks up changes after a push.
 Development journals of the skills (skill-forge) live in the port: `_port/skills-lab/<skill>/JOURNAL.md`.
