@@ -39,7 +39,8 @@ def main():
             bad |= run(['plugin', 'install', ref])
         else:
             print(ref, '-> not installed (use --install)')
-    print('restart Claude Code sessions (or /reload-plugins) to load the new copies')
+    print('start a new terminal session to load the new copies (/reload-plugins keeps a loaded version);')
+    print('the desktop app Code tab needs a push, an update on claude.ai and an app restart instead')
     return 1 if bad else 0
 
 
