@@ -1,7 +1,7 @@
 # mamoru-claude-plugins
 
-Local Claude Code marketplace `mamoru-plugins` (created 2026-10-12). Master copy of the skills since then: edit here, then mirror into
-the DeceasedCraft port (`_port/tools/skills/`) and re-upload the zips to claude.ai.
+Claude Code plugin marketplace `mamoru-plugins` (created 2026-10-12): installed locally from this folder and on claude.ai from the
+GitHub copy. Master copy of the skills since then: edit here, then mirror the port skills into the DeceasedCraft port (`_port/tools/skills/`).
 
 | Plugin | Skills |
 |---|---|
@@ -12,6 +12,13 @@ the DeceasedCraft port (`_port/tools/skills/`) and re-upload the zips to claude.
 Install (user scope): `claude plugin marketplace add <this folder>`, then `claude plugin install minecraft-modding@mamoru-plugins` and
 `claude plugin install agent-workflow@mamoru-plugins`,
 `claude plugin install writing-and-scripts@mamoru-plugins` (or `python refresh_local.py --install`).
-Claude Code runs the plugins from its cache (`~/.claude/plugins/cache/mamoru-plugins/<plugin>/<commit SHA>/`), not from this
-folder: after a change commit it, run `python refresh_local.py` and start a new session. claude.ai picks up changes after a push.
+Where a session reads the plugins from (checked 2026-10-12, Claude Code 2.1.294-2.1.295, Windows 11):
+- `claude` in a terminal: the local install, a copy in `~/.claude/plugins/cache/mamoru-plugins/<plugin>/<commit SHA>/`, not this folder.
+  After a change: commit, `python refresh_local.py`, new session (`/reload-plugins` does not switch a loaded plugin to the new version).
+- Code tab of the Claude desktop app: the copies installed on the claude.ai account
+  (`%APPDATA%/Claude/local-agent-mode-sessions/<org>/<user>/rpm/plugin_<id>/`, refreshed when the app starts); they shadow the local
+  install of the same names. After a change: commit, push, update the plugins on claude.ai (Customize > Plugins), fully restart the app.
+
+Check which version a session got by comparing the plugin folder byte by byte with the commit (`git show <sha>:<path> | cmp - <file>`).
+On Windows `git hash-object` reports false differences for CRLF files (it applies core.autocrlf outside the repo).
 Development journals of the skills (skill-forge) live in the port: `_port/skills-lab/<skill>/JOURNAL.md`.

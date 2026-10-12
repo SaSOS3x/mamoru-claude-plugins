@@ -4,7 +4,9 @@
 Claude Code does not read the plugins from this folder: it copies each plugin into
 ~/.claude/plugins/cache/mamoru-plugins/<plugin>/<version or commit SHA>/ at install and update
 (checked 2026-10-12, Claude Code 2.1.294 on Windows). After you change a skill here:
-commit, then run this script, then start a new session (or /reload-plugins).
+commit, then run this script, then start a new session (/reload-plugins does not switch a
+plugin that is already loaded to the new version). This is the install used by `claude` in a
+terminal; the Code tab of the Claude desktop app uses the claude.ai account copies (see README).
 
   python refresh_local.py            update the marketplace and every plugin listed in marketplace.json
   python refresh_local.py --install  also install plugins that are listed but not installed yet
