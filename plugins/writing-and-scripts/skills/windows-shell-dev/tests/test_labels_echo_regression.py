@@ -20,7 +20,7 @@ cases where the echo stops at a separator and the jump after it is real. A rem i
 the opposite - nothing ends it, so `echo x & rem note & goto :x` never jumps and
 must stay clean - and "rem" inside a word (`call :lorem ipsum`) is not a rem.
 
-Run:  python3 tests/test_labels_echo_regression.py
+Run:  python tests/test_labels_echo_regression.py
 """
 import pathlib
 import re

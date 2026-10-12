@@ -16,7 +16,7 @@ asserts the EXACT set of flagged lines, in both directions:
     whose prefix some label starts with, matched case-insensitively, plus an
     echoed computed jump.
 
-Run:  python3 tests/test_computed_jump_regression.py
+Run:  python tests/test_computed_jump_regression.py
 """
 import pathlib
 import re

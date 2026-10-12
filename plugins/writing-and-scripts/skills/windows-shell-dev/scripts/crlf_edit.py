@@ -9,11 +9,14 @@ string-replacement while preserving the original line endings, encoding, and
 BOM state, and it refuses to apply a replacement that doesn't match exactly
 once (so an edit can never silently no-op or hit the wrong place).
 
-Use as a library from a one-off Python edit script:
+Use as a library from a one-off Python edit script (put this folder on sys.path
+first, e.g. sys.path.insert(0, "<path to this scripts folder>")):
 
-    from crlf_edit import read, write, replace_exact
+    from crlf_edit import read, write, replace_exact, to_newline
     text, meta = read("PerfTweaks.cmd")
-    text = replace_exact(text, OLD_BLOCK, NEW_BLOCK)        # expects exactly 1 match
+    # to_newline gives a snippet written with LF the file's own line endings
+    text = replace_exact(text, to_newline(OLD_BLOCK, meta.newline),
+                         to_newline(NEW_BLOCK, meta.newline))   # expects exactly 1 match
     write("PerfTweaks.cmd", text, meta)
 
 Or from the command line for a single replacement:
@@ -21,6 +24,11 @@ Or from the command line for a single replacement:
     python crlf_edit.py report FILE
     python crlf_edit.py replace FILE --old-file old.txt --new-file new.txt
     python crlf_edit.py replace FILE --old "goto :men" --new "goto :menu"
+
+`replace` reads --old-file/--new-file as bytes (no newline translation), gives
+both snippets the file's line ending (LF or CRLF input both work on a CRLF file)
+and exits 1 - without writing - when nothing would change or the edit would add
+lone LF endings to a CRLF file.
 
 `read` returns the text with line endings intact (it reads with newline="" so
 \\r\\n stays literal), plus a Meta describing how to write it back byte-faithfully.
@@ -121,26 +129,60 @@ def _cmd_report(args):
     return 0 if ok else 1
 
 
+def _read_snippet(path):
+    """Read an --old-file / --new-file as bytes, so no newline translation
+    happens (Path.read_text would turn CRLF into LF)."""
+    raw = Path(path).read_bytes()
+    if raw.startswith(b"\xef\xbb\xbf"):
+        raw = raw[3:]
+    return raw.decode("utf-8")
+
+
+def to_newline(s, newline):
+    """Give every line break of `s` the ending `newline` (CRLF or LF). A snippet
+    typed or saved with LF must not put bare LF into a CRLF file."""
+    return s.replace("\r\n", "\n").replace("\n", newline)
+
+
 def _cmd_replace(args):
-    old = Path(args.old_file).read_text(encoding="utf-8") if args.old_file else args.old
-    new = Path(args.new_file).read_text(encoding="utf-8") if args.new_file else args.new
+    old = _read_snippet(args.old_file) if args.old_file else args.old
+    new = _read_snippet(args.new_file) if args.new_file else args.new
     if old is None or new is None:
         print("error: provide --old/--new or --old-file/--new-file", file=sys.stderr)
         return 2
+    if old == "":
+        print("error: the old text is empty", file=sys.stderr)
+        return 2
     before = eol_report(args.file)
     text, meta = read(args.file)
+    # Match the snippet as given first (a mixed file may hold a lone LF on purpose);
+    # if that finds nothing, retry with the file's own line ending.
+    if text.count(old) != args.expect:
+        old_n = to_newline(old, meta.newline)
+        if old_n != old and text.count(old_n) == args.expect:
+            old = old_n
+    # The inserted text always gets the file's dominant line ending.
+    new = to_newline(new, meta.newline)
     try:
-        text = replace_exact(text, old, new, expect=args.expect)
+        new_text = replace_exact(text, old, new, expect=args.expect)
     except ValueError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
-    write(args.file, text, meta)
+    if new_text == text:
+        print("error: nothing was replaced (old and new text are identical). "
+              "File not written.", file=sys.stderr)
+        return 1
+    lone_lf_before = text.count("\n") - text.count("\r\n")
+    lone_lf_after = new_text.count("\n") - new_text.count("\r\n")
+    if meta.newline == "\r\n" and lone_lf_after > lone_lf_before:
+        print(f"error: the edit would add {lone_lf_after - lone_lf_before} lone LF "
+              "line ending(s) to the file. File not written.", file=sys.stderr)
+        return 1
+    write(args.file, new_text, meta)
     after = eol_report(args.file)
     print(f"replaced {args.expect} occurrence(s).")
-    if before["crlf"] and after["lone_lf"] != before["lone_lf"]:
-        print("WARNING: lone-LF count changed - line endings may have shifted.",
-              file=sys.stderr)
     print(f"  CRLF {before['crlf']} -> {after['crlf']}, "
+          f"lone LF {before['lone_lf']} -> {after['lone_lf']}, "
           f"encoding {after['encoding']}, bom {after['bom']}")
     return 0
 

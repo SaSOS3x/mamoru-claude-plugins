@@ -29,7 +29,7 @@ flagged lines in both directions:
     call. `call :walk_%MODE%` can land on any label that starts with walk_, and
     reading the prefix as a label name left those helpers looking top-level.
 
-Run:  python3 tests/test_shift_regression.py
+Run:  python tests/test_shift_regression.py
 """
 import pathlib
 import re

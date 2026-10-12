@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """classpath_jar.py - a tiny jar whose manifest Class-Path lists many jars/dirs (Windows 32k command-line limit).
 
-  python classpath_jar.py OUT.jar ENTRY [ENTRY ...]
+  python classpath_jar.py OUT.jar ENTRY [ENTRY ...] [--skip-missing]
   ENTRY = a jar, a directory, a glob (mods/*.jar, libs/**/*.jar) or @listfile (one path per line).
+  A missing entry (or a glob that matches nothing) is an error, exit 1, nothing written; --skip-missing only warns.
   Then:  javap -cp OUT.jar some.pkg.Class      (javap has no @argfile; java / javac do: java @args.txt)
 
 Why: javap / java -cp with a 35k-char classpath fails on Windows with "Argument list too long" (CreateProcess ~32767
 chars). The JVM follows Class-Path of a jar on the classpath, so the long list moves into the file.
 Details: entries become file:/// URLs (spaces -> %20), directories get a trailing '/', manifest lines are wrapped at
 72 bytes with a leading space on continuation lines (the manifest spec). Needs only the stdlib; ASCII-only output.
-Exit 0 ok, 1 usage / nothing matched.
+Exit 0 ok, 1 usage / missing entry or @file / nothing matched.
 """
 import glob
 import pathlib
@@ -17,12 +18,19 @@ import sys
 import zipfile
 
 
+class ListFileError(Exception):
+    pass
+
+
 def expand(entry):
     if entry.startswith('@'):
-        lines = pathlib.Path(entry[1:]).read_text(encoding='utf-8').splitlines()
+        try:
+            lines = pathlib.Path(entry[1:]).read_text(encoding='utf-8-sig').splitlines()
+        except OSError as e:
+            raise ListFileError(f'error: list file {entry[1:]} cannot be read ({e.strerror or e})')
         return [l.strip() for l in lines if l.strip()]
     if any(ch in entry for ch in '*?['):
-        return sorted(glob.glob(entry, recursive=True))
+        return sorted(glob.glob(entry, recursive=True)) or [entry]
     return [entry]
 
 
@@ -46,10 +54,25 @@ def main(argv):
     if len(argv) < 2:
         print(__doc__)
         return 1
+    skip_missing = '--skip-missing' in argv
+    argv = [a for a in argv if a != '--skip-missing']
+    if len(argv) < 2:
+        print(__doc__)
+        return 1
     out, items = argv[0], []
-    for e in argv[1:]:
-        items += expand(e)
+    try:
+        for e in argv[1:]:
+            items += expand(e)
+    except ListFileError as e:
+        print(e)
+        return 1
+    missing = [p for p in items if not pathlib.Path(p).exists()]
     items = [p for p in items if pathlib.Path(p).exists()]
+    for p in missing:
+        print(f'{"warning: skipped" if skip_missing else "error: not found"}: {p}')
+    if missing and not skip_missing:
+        print(f'{len(missing)} entries do not exist; nothing written (use --skip-missing to ignore them)')
+        return 1
     if not items:
         print('nothing matched')
         return 1

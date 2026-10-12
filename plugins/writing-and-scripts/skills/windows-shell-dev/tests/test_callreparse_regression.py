@@ -17,7 +17,7 @@ with "Call", a direct call in the file (a review rule, not this check), an emitt
 behind an inline rem (nothing ends a rem, so it is comment too) and a commented-out
 emitter.
 
-Run:  python3 tests/test_callreparse_regression.py
+Run:  python tests/test_callreparse_regression.py
 Exit: 0 = pass, 1 = a detection regression or a new false positive.
 """
 

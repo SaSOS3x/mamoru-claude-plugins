@@ -34,8 +34,11 @@ Git Bash переписывает часть аргументов, Windows не 
 3. **Кодировка (23 сбоя).** Без настройки stdout это cp1251: `print('\u2192')` даёт UnicodeEncodeError.
    `PYTHONIOENCODING=utf-8` чинит только stdout/stderr. `open()` без `encoding=` остаётся cp1251 (проверено): UTF-8 файл
    читается МОЛЧА с мусором (`привет` стало `РїСЂРёРІРµС‚`), запись `→` падает. Всегда `encoding='utf-8'` в open/read_text/write_text.
-   Здесь PYTHONIOENCODING стоит в `.claude/settings.json` ЭТОГО проекта (env); в других проектах и в
-   `~/.claude/settings.json` его нет. `PYTHONUTF8=1` чинит оба случая, но ломает `subprocess(text=True)` для консольных
+   Проверь `env_probe.py`: стоит ли `PYTHONIOENCODING` в вашей сессии. Задать его можно в блоке `env` файла `.claude/settings.json`
+   проекта или `~/.claude/settings.json` (только с согласия пользователя); у каждого проекта он свой, по умолчанию его нет.
+   **Конфликт с `-I`:** `python -I` игнорирует ВСЕ переменные `PYTHON*` (проверено: `PYTHONUTF8=1 python -I` даёт
+   `sys.flags.utf8_mode` 0, вывод остаётся cp1251), а `python -I -X utf8` даёт 1. Где нужен `-I`, пиши `python -I -X utf8`
+   (флаг `-X utf8` не зависит от окружения; в этом режиме `open()` тоже UTF-8). `PYTHONUTF8=1` чинит оба случая, но ломает `subprocess(text=True)` для консольных
    программ Windows: их вывод в cp866, получается UnicodeDecodeError (проверено на `net helpmsg 2`). Такой вывод
    читай байтами: `.decode('cp866', errors='replace')`. Менять переменные окружения без согласия пользователя нельзя.
 4. **Код выхода врёт (59 % сбоев имели exit 0).** `cmd | head`, цепочка через `;`, `2>&1`, цикл дают код последней команды.
@@ -48,7 +51,7 @@ Git Bash переписывает часть аргументов, Windows не 
    `python "${CLAUDE_SKILL_DIR}/scripts/eol.py" файлы` (CRLF / LF / CR, BOM, MIXED) или `tr -cd '\r' < file | wc -c`.
 7. **Имя скрипта = имя модуля stdlib.** `json.py`, `struct.py`, `types.py`, `random.py` рядом со скриптом или в текущей
    папке (даже для `python -c`) перекрывают настоящий модуль: `AttributeError: module 'json' has no attribute 'dumps'`,
-   сломанный `zipfile`. Не называй так черновики; `python -I` (изолированный режим) игнорирует и папку скрипта, и текущую.
+   сломанный `zipfile`. Не называй так черновики; `python -I -X utf8` (изолированный режим) игнорирует и папку скрипта, и текущую (а `-I` без `-X utf8` оставляет cp1251, см. ловушку 3).
 8. **Не тот JDK.** Здесь `JAVA_HOME` (Machine) = jdk-17, `java` и `javac` на PATH = 21 (заглушки `Common Files/Oracle/Java/javapath`),
    `javap` и `jar` = 17 (Adoptium). Класс, собранный `javac` 21, не запускается через `$JAVA_HOME/bin/java`:
    `UnsupportedClassVersionError ... 65.0 ... up to 61.0` (проверено). Gradle/Maven берут `JAVA_HOME`.
@@ -75,7 +78,8 @@ Git Bash переписывает часть аргументов, Windows не 
   Git Bash (1, 2, 4, 6) к нему не относятся, про Python и Java (3, 7-9) остаются.
 - Если в проекте есть своя обёртка (например javap с готовым classpath), используй её, а не `classpath_jar.py`.
 - Состояние проекта (версии модов, пути инструкций, статус работ) сюда не писать: это дневник проекта.
-- Скрипты: `env_probe.py [папка]`, `eol.py файлы`, `classpath_jar.py out.jar вход...` (только stdlib, вывод ASCII).
+- Скрипты: `env_probe.py [папка]` (несуществующая папка даёт WARN), `eol.py файлы`, `classpath_jar.py out.jar вход... [--skip-missing]`
+  (нет файла из списка или `@файла` это ошибка с кодом 1; только stdlib, вывод ASCII).
 
 ## Паспорт
 Создан: 2026-10-12 из аудита ошибок агентов в проекте DeceasedCraft (CLAUDE.md "Shell traps", HANDOFF "Windows tool traps",
@@ -83,4 +87,6 @@ Git Bash переписывает часть аргументов, Windows не 
 Проверен: 2026-10-12, Git Bash MINGW64 (Git 2.56), Python 3.14.7, JDK 21.0.8 / 17.0.14, 20 проверок на ПК (см. журнал); навык
 пока не прогнан исполнителем с чистым контекстом (skill-forge, шаг 5, проверки 1-2 не сделаны)
 Границы: не для .bat/.cmd; пути JDK и PATH относятся к этому ПК, у других машин сначала `env_probe.py`
-Изменения: 2026-10-12 - первая версия; вызовы скриптов через ${CLAUDE_SKILL_DIR} (плагин работает из кэша)
+Изменения: 2026-10-12 - первая версия; вызовы скриптов через переменную папки навыка (плагин работает из кэша)
+Изменения: 2026-10-12 - по проверке плагинов: `python -I -X utf8` вместо конфликта `-I` и PYTHON*; env_probe.py даёт WARN для
+несуществующей папки; classpath_jar.py сообщает об отсутствующих jar и `@файле`; про PYTHONIOENCODING сказано для любого проекта

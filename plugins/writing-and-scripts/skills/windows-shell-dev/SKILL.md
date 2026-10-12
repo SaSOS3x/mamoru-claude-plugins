@@ -23,6 +23,12 @@ Any sizable `.cmd`/`.bat`: optimizers, tweakers, ADB/registry front-ends, instal
 tools; the PowerShell embedded in them; any `tests/Run-Tests.ps1`-style harness. If the user
 hands over a batch project (often a zip with a README), start here.
 
+**Calling the bundled scripts.** They live in this skill's folder, not in the user's project,
+so a bare `python scripts/x.py` fails from the project folder. Every command below uses the
+full path of the skill folder (already filled in when you read this) and is run from the
+project folder, in Git Bash and in PowerShell alike. Use `python`, never `python3` (on Windows
+`python3` is often a Microsoft Store stub that prints nothing useful).
+
 ---
 
 ## The non-negotiables
@@ -147,8 +153,8 @@ From a zip: extract, then check the main file's size and line endings before any
 you introduce:
 
 ```bash
-python scripts/analyze_batch.py script.cmd
-python scripts/menuscan.py script.cmd
+python "${CLAUDE_SKILL_DIR}/scripts/analyze_batch.py" script.cmd
+python "${CLAUDE_SKILL_DIR}/scripts/menuscan.py" script.cmd
 ```
 
 ERRORs first (provably broken), then WARNs (known bug patterns), then INFO; look up anything
@@ -182,25 +188,34 @@ CHANGES note. See [Deliverables](#deliverables).
 `scripts/crlf_edit.py` reads with line endings intact, refuses a replacement that does not
 match exactly once, and writes back byte-faithfully.
 
-From a one-off Python edit script (best for multi-line blocks):
+From a one-off Python edit script (best for multi-line blocks). The module sits in the
+skill folder, so the script puts that folder on `sys.path` first (write the edit script to a
+file and run it with `python`; do not paste it into `python -c`):
 
 ```python
-from crlf_edit import read, write, replace_exact
+import sys
+sys.path.insert(0, "${CLAUDE_SKILL_DIR}/scripts")
+from crlf_edit import read, write, replace_exact, to_newline
 text, meta = read("script.cmd")
-text = replace_exact(text, OLD_BLOCK, NEW_BLOCK)   # raises unless exactly 1 match
+# to_newline gives a block typed with LF the file's own line ending (CRLF)
+text = replace_exact(text, to_newline(OLD_BLOCK, meta.newline),
+                     to_newline(NEW_BLOCK, meta.newline))   # raises unless exactly 1 match
 write("script.cmd", text, meta)                    # CRLF/BOM/encoding preserved
 ```
 
 Or from the shell:
 
 ```bash
-python scripts/crlf_edit.py report script.cmd                 # EOL/encoding/BOM
-python scripts/crlf_edit.py replace script.cmd \
+python "${CLAUDE_SKILL_DIR}/scripts/crlf_edit.py" report script.cmd     # EOL/encoding/BOM
+python "${CLAUDE_SKILL_DIR}/scripts/crlf_edit.py" replace script.cmd \
     --old-file old.txt --new-file new.txt
 ```
 
-If the anchor is not unique the tool says so; widen or narrow it rather than forcing the
-edit.
+`replace` reads `--old-file`/`--new-file` as bytes and gives both the file's line ending, so
+an LF-written `old.txt` still matches a multi-line block of a CRLF file and `new.txt` never
+puts bare LF into it. It exits 1 and leaves the file alone when nothing would change or the
+edit would add lone LF endings. If the anchor is not unique the tool says so; widen or narrow
+it rather than forcing the edit.
 
 **This applies to every file the project ships.** Preset files, `.config` inputs, bundled
 `hosts` lists and sample data are read on the same Windows box and carry the same
@@ -218,14 +233,30 @@ calls. Those one-liners live inside cmd quoting, so they break easily and hide i
 sight. Validate in two passes:
 
 ```bash
-python scripts/extract_ps.py script.cmd --show    # fast static lint: bracket/quote balance
+python "${CLAUDE_SKILL_DIR}/scripts/extract_ps.py" script.cmd --show    # fast static lint: bracket/quote balance
 ```
 
-If the sandbox has no `pwsh`, install it first:
+**On Windows** (the normal case) nothing needs installing: Windows PowerShell 5.1,
+`powershell.exe`, is built in and runs the validator. `-ExecutionPolicy Bypass` applies to
+this one process only; without it a default Windows refuses to run a `.ps1`.
 
 ```bash
-bash scripts/setup_pwsh.sh                         # idempotent; installs to /opt/pwsh
-/opt/pwsh/pwsh -NoProfile -File scripts/Validate-Embedded.ps1 \
+powershell.exe -NoProfile -ExecutionPolicy Bypass \
+    -File "${CLAUDE_SKILL_DIR}/scripts/Validate-Embedded.ps1" \
+    -CmdFile script.cmd -Harness tests/Run-Tests.ps1 -RunHarness
+```
+
+Exit codes: 0 valid, 1 a snippet or the harness is bad, 2 a named file does not exist. A line
+`WARNING: no embedded PowerShell found` means nothing was parsed (the file has none, or its
+`-Command` body is not written in double quotes) - it is not a pass. Inside a snippet `\"` is
+read as a quote, the way `powershell.exe` reads its command line.
+
+**On Linux** (a sandbox with no `pwsh`) install the Linux build first. The script refuses on
+Windows and macOS (it installs a Linux binary into `/opt/pwsh`):
+
+```bash
+bash "${CLAUDE_SKILL_DIR}/scripts/setup_pwsh.sh"    # Linux only; idempotent; installs to /opt/pwsh
+/opt/pwsh/pwsh -NoProfile -File "${CLAUDE_SKILL_DIR}/scripts/Validate-Embedded.ps1" \
     -CmdFile script.cmd -Harness tests/Run-Tests.ps1 -RunHarness
 ```
 
@@ -482,17 +513,19 @@ finding needs context or when writing new code.
 
 | Script | Purpose | Typical call |
 |--------|---------|--------------|
-| `scripts/analyze_batch.py` | Static analysis: labels, parens, delayed expansion, redirects, pipes, line endings. Run after every edit. | `python scripts/analyze_batch.py script.cmd [--strict] [--json]` |
-| `scripts/menuscan.py` | Menu parity for `set /p` menus: keys printed vs keys dispatched, numbers contiguous with conditional rows on, off and each alone, keys shown twice, keys shown but never handled or handled but never shown. Exit 1 on findings; `-v` lists every menu checked; the docstring states the heuristics and their limits. | `python scripts/menuscan.py script.cmd [-v]` |
-| `scripts/crlf_edit.py` | Byte-safe editing (CRLF/BOM/encoding preserved) with exact-match replacement. | `python scripts/crlf_edit.py report script.cmd` |
-| `scripts/extract_ps.py` | Extract + statically lint embedded PowerShell one-liners. | `python scripts/extract_ps.py script.cmd --show` |
-| `scripts/Validate-Embedded.ps1` | Real-parser validation of embedded PS + optional harness run. | `pwsh -NoProfile -File scripts/Validate-Embedded.ps1 -CmdFile script.cmd` |
-| `scripts/setup_pwsh.sh` | Install PowerShell from the official tarball when absent. | `bash scripts/setup_pwsh.sh` |
-| `scripts/extract_baseline.py` | **DCX neo only** — port-sync gate: parses a `reference/DCX.bat`, regenerates `dcx/data/*.py` + `tests/golden/baseline.json` + `tools/coverage_report.txt`; exit 1 on any UNMAPPED adb line or review-table drift. | `python scripts/extract_baseline.py --repo <dcx-py checkout>` |
+| `scripts/analyze_batch.py` | Static analysis: labels, parens, delayed expansion, redirects, pipes, line endings. Run after every edit. | `python "${CLAUDE_SKILL_DIR}/scripts/analyze_batch.py" script.cmd [--strict] [--json]` |
+| `scripts/menuscan.py` | Menu parity for `set /p` menus: keys printed vs keys dispatched, numbers contiguous with conditional rows on, off and each alone, keys shown twice, keys shown but never handled or handled but never shown. Exit 1 on findings; `-v` lists every menu checked; the docstring states the heuristics and their limits. | `python "${CLAUDE_SKILL_DIR}/scripts/menuscan.py" script.cmd [-v]` |
+| `scripts/crlf_edit.py` | Byte-safe editing (CRLF/BOM/encoding preserved) with exact-match replacement. | `python "${CLAUDE_SKILL_DIR}/scripts/crlf_edit.py" report script.cmd` |
+| `scripts/extract_ps.py` | Extract + statically lint embedded PowerShell one-liners. | `python "${CLAUDE_SKILL_DIR}/scripts/extract_ps.py" script.cmd --show` |
+| `scripts/Validate-Embedded.ps1` | Real-parser validation of embedded PS + optional harness run. Runs in `powershell.exe` 5.1 on Windows. | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_SKILL_DIR}/scripts/Validate-Embedded.ps1" -CmdFile script.cmd` |
+| `scripts/setup_pwsh.sh` | **Linux only** (refuses elsewhere): install PowerShell from the official tarball when absent. Not needed on Windows. | `bash "${CLAUDE_SKILL_DIR}/scripts/setup_pwsh.sh"` |
+| `scripts/extract_baseline.py` | **DCX neo only** — port-sync gate: parses a `reference/DCX.bat`, regenerates `dcx/data/*.py` + `tests/golden/baseline.json` + `tools/coverage_report.txt`; exit 1 on any UNMAPPED adb line or review-table drift. | `python "${CLAUDE_SKILL_DIR}/scripts/extract_baseline.py" --repo <dcx-py checkout>` |
 
 The Python scripts have no dependencies. `analyze_batch.py`, `menuscan.py` and
 `Validate-Embedded.ps1` exit nonzero on real problems, so they compose into CI or a harness.
-`tests/test_*.py` are the scripts' own regression guards - run them after changing a script.
+`tests/test_*.py` are the scripts' own regression guards - run them after changing a script,
+each with `python` from any folder (they find the scripts next to themselves), e.g.
+`python "${CLAUDE_SKILL_DIR}/tests/test_setp_regression.py"`.
 
 ### Project gate: DCX neo port sync (`extract_baseline.py`)
 
@@ -502,7 +535,7 @@ drifts from the batch:
 
 ```
 cp <new DCX.bat> <dcx-py>/reference/DCX.bat
-python scripts/extract_baseline.py --repo <dcx-py>
+python "${CLAUDE_SKILL_DIR}/scripts/extract_baseline.py" --repo <dcx-py>
 ```
 
 Before acting on the result, read [references/dcx-gate.md](references/dcx-gate.md): what a

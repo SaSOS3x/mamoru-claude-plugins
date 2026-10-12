@@ -18,7 +18,7 @@ A second pass strips the `mode con` line and asserts the check goes completely s
 a script that never declares a width could be running in any terminal, and guessing one
 would invent findings.
 
-Run:  python3 tests/test_promptwidth_regression.py
+Run:  python tests/test_promptwidth_regression.py
 Exit: 0 = pass, 1 = a detection regression or a new false positive.
 """
 

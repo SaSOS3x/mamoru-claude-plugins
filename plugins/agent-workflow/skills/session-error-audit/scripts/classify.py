@@ -18,6 +18,9 @@ OUT_DIR/summary.json ({"meta": {...totals...}, "clusters": [...]}), prints the t
          where = "out" (tool output), "cmd" (command / file path) or "tool:Name|Name2" (tool name; pattern is then
          matched against the output, an empty pattern matches every call of that tool). Use it for the causes specific
          to your project; what remains in "unclassified-strong" at the end of the table is what needs a new rule.
+Input is checked first: a missing / empty --dir, a rows.json that is not from scan_fail.py, a --rules file that is
+missing, not JSON, not a list or has a bad regex print "ERROR: ..." and exit with code 2 (no Traceback).
+If the scan found 0 tool calls a WARNING is printed. A Git Bash path /c/x is accepted on Windows (turned into C:/x).
 Soft rows (exit 0) of commands that run the audit scripts themselves are NOISE meta: otherwise the audit counts its own output.
 A soft row from `cat` / `sed` of a file that merely quotes an error stays "real" on purpose (it may hide a true failure of a
 background task): move such rows to noise by hand with a --rules entry on the command.
@@ -27,6 +30,7 @@ The built-in rules match Git Bash / PowerShell / python / javap / Edit / Write m
 import argparse
 import collections
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -62,11 +66,63 @@ BUILTIN = [
 ]
 
 
+def die(msg):
+    print("ERROR: " + msg, file=sys.stderr)
+    sys.exit(2)
+
+
+def norm_path(p):
+    """Git Bash form /c/x (or /cygdrive/c/x) -> C:/x. Only on Windows: a native python cannot open /c/x there."""
+    if p and os.name == "nt":
+        m = re.match(r"^(?:/cygdrive)?/([A-Za-z])(?:/(.*))?$", p)
+        if m:
+            return m.group(1).upper() + ":/" + (m.group(2) or "")
+    return p
+
+
+def read_json(path, what, hint=""):
+    p = Path(path)
+    if not p.is_file():
+        die("%s not found: %s%s" % (what, p, hint))
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (ValueError, OSError) as e:
+        die("%s is not valid JSON: %s (%s)" % (what, p, e))
+
+
 def load_rules(path):
     if not path:
         return []
-    rules = json.loads(Path(path).read_text(encoding="utf-8"))
-    return [(r.get("where", "out"), r["pattern"], r["cat"]) for r in rules]
+    rules = read_json(norm_path(path), "rules file")
+    if not isinstance(rules, list):
+        die("rules file must hold a JSON list of objects {cat, pattern, where}: %s" % path)
+    out = []
+    for i, r in enumerate(rules):
+        if not isinstance(r, dict) or not isinstance(r.get("pattern"), str) or not isinstance(r.get("cat"), str):
+            die("rules file %s: item %d needs string fields \"cat\" and \"pattern\"" % (path, i))
+        where = r.get("where", "out")
+        if not isinstance(where, str) or not (where in ("out", "cmd") or where.startswith("tool:")):
+            die("rules file %s: item %d has where=%r (use \"out\", \"cmd\" or \"tool:Name|Name2\")" % (path, i, where))
+        try:
+            re.compile(r["pattern"])
+            if where.startswith("tool:"):
+                re.compile(where[5:])
+        except re.error as e:
+            die("rules file %s: item %d has a bad regex: %s" % (path, i, e))
+        out.append((where, r["pattern"], r["cat"]))
+    return out
+
+
+ROW_KEYS = {"src", "ts", "tool", "cmd", "err", "iserr", "nonzero"}
+
+
+def load_rows(d):
+    if not d.is_dir():
+        die("--dir is not a folder: %s" % d)
+    rows = read_json(d / "rows.json", "rows.json", " (run scan_fail.py with --out on this folder first)")
+    if not isinstance(rows, list) or not all(isinstance(r, dict) and ROW_KEYS <= r.keys() for r in rows):
+        die("%s does not look like rows.json of scan_fail.py (a list of rows with %s)" % (d / "rows.json", sorted(ROW_KEYS)))
+    return rows
 
 
 def classify(r, extra):
@@ -173,13 +229,16 @@ def main():
     ap.add_argument("--rules")
     ap.add_argument("--examples", type=int, default=3)
     a = ap.parse_args()
-    d = Path(a.dir)
-    rows = json.loads((d / "rows.json").read_text(encoding="utf-8"))
+    d = Path(norm_path(a.dir))
+    extra = load_rules(a.rules)
+    rows = load_rows(d)
     try:
         scan_meta = json.loads((d / "scan_meta.json").read_text(encoding="utf-8"))
     except Exception:
         scan_meta = {}
-    extra = load_rules(a.rules)
+    if not scan_meta.get("tool_calls") and "tool_calls" in scan_meta:
+        print("WARNING: the scan found 0 tool calls - an empty table here is NOT 'no failures'. "
+              "Check --since/--until/--session/--dir of scan_fail.py.")
 
     by = collections.defaultdict(list)
     for r in rows:

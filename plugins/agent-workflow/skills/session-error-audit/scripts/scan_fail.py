@@ -10,14 +10,20 @@ Each tool_use is paired with its tool_result. A result is recorded as a row when
 
 Usage (Windows and Linux alike, forward slashes are fine):
   python scan_fail.py --project "C:/path/to/project"  --out OUT_DIR
-  python scan_fail.py --dir "~/.claude/projects/<mangled name>" --out OUT_DIR [--session SID] [--since ISO] [--until ISO]
+  python scan_fail.py --dir "~/.claude/projects/<mangled name>" --out OUT_DIR [--session SID] [--since TIME] [--until TIME]
 
 --project  working folder of the project; the transcript folder is derived from it the way Claude Code does it
            (every character except letters and digits becomes "-"), under CLAUDE_CONFIG_DIR or ~/.claude.
 --dir      the transcript folder itself (use it when --project does not find the folder).
 --session  only this session id (default: every session in the folder).
---since / --until  ISO timestamps (UTC, e.g. 2026-10-12T00:00:00Z); calls outside are skipped. Use --until to
-           repeat an old audit on the same slice of history.
+--since / --until  UTC time; calls outside are skipped. Accepted forms: 2026-10-12 (= 00:00:00 of that day),
+           2026-10-12T23:11, 2026-10-12T23:11:00, 2026-10-12T23:11:00.5, each with an optional Z or +00:00 / +03:00
+           ending (no ending = UTC). The times are parsed, not compared as text. Use --until to repeat an old audit
+           on the same slice of history. A value that is not a time stops the script (exit 2).
+A session folder whose main *.jsonl was deleted (only <id>/subagents is left) is scanned too, as its own session.
+Windows: a Git Bash path like /c/Users/x is turned into C:/Users/x, so it also works from PowerShell.
+Wrong input (missing folder, bad time) prints "ERROR: ..." and exits with code 2. A scan that finds 0 tool calls
+prints a WARNING (it is not "no failures": check the period, --session and --dir).
 Writes OUT_DIR/rows.json and OUT_DIR/scan_meta.json. Needs only the standard library.
 """
 import argparse
@@ -25,6 +31,7 @@ import json
 import os
 import re
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 for _s in (sys.stdout, sys.stderr):  # cp1251 consoles on Windows must not break the output
@@ -38,6 +45,54 @@ PATTERNS = ["Traceback", "SyntaxError", "unexpected EOF", "UnicodeEncodeError", 
             "timed out", "InputValidationError", "File has not been read", "changed on disk",
             "String to replace not found", "CRLF"]
 EXIT_RE = re.compile(r"^\s*Exit code (-?\d+)")
+TS_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:[.,](\d{1,9}))?)?)?\s*"
+                   r"(Z|[+-]\d{2}(?::?\d{2})?)?$", re.I)
+TS_HELP = "use 2026-10-12, 2026-10-12T23:11Z, 2026-10-12T23:11:00Z or 2026-10-12T23:11:00+00:00 (UTC)"
+
+
+def die(msg):
+    print("ERROR: " + msg, file=sys.stderr)
+    sys.exit(2)
+
+
+def norm_path(p):
+    """Git Bash form /c/x (or /cygdrive/c/x) -> C:/x. Only on Windows: a native python cannot open /c/x there."""
+    if p and os.name == "nt":
+        m = re.match(r"^(?:/cygdrive)?/([A-Za-z])(?:/(.*))?$", p)
+        if m:
+            return m.group(1).upper() + ":/" + (m.group(2) or "")
+    return p
+
+
+def parse_ts(s):
+    """Time text -> timezone-aware datetime in UTC, or None when it is not a time."""
+    m = TS_RE.match((s or "").strip())
+    if not m:
+        return None
+    y, mo, d, h, mi, sec, frac, tz = m.groups()
+    try:
+        dt = datetime(int(y), int(mo), int(d), int(h or 0), int(mi or 0), int(sec or 0),
+                      int((frac or "0")[:6].ljust(6, "0")), tzinfo=timezone.utc)
+        if tz and tz.upper() != "Z":
+            digits = tz[1:].replace(":", "")
+            off = timedelta(hours=int(digits[:2]), minutes=int(digits[2:4] or 0))
+            dt = dt - off if tz[0] == "+" else dt + off
+    except (ValueError, OverflowError):
+        return None
+    return dt
+
+
+def ts_arg(s):
+    if s == "":
+        return None
+    dt = parse_ts(s)
+    if dt is None:
+        raise argparse.ArgumentTypeError("%r is not a time (%s)" % (s, TS_HELP))
+    return dt
+
+
+def iso(dt):
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ") if dt else ""
 
 
 def mangle(path):
@@ -47,9 +102,12 @@ def mangle(path):
 
 def find_transcript_dir(project, directory):
     if directory:
-        return Path(os.path.expanduser(directory))
+        tdir = Path(os.path.expanduser(norm_path(directory)))
+        if not tdir.is_dir():
+            die("transcript folder not found or not a folder: %s" % tdir)
+        return tdir
     base = Path(os.environ.get("CLAUDE_CONFIG_DIR") or (Path.home() / ".claude")) / "projects"
-    p = os.path.abspath(os.path.expanduser(project))
+    p = os.path.abspath(os.path.expanduser(norm_path(project)))
     cand = base / mangle(p)
     if cand.is_dir():
         return cand
@@ -59,7 +117,7 @@ def find_transcript_dir(project, directory):
         for d in base.iterdir():
             if d.is_dir() and d.name.lower() == want:
                 return d
-    raise SystemExit("transcript folder not found: %s (try --dir)" % cand)
+    die("transcript folder not found: %s (check --project or give --dir)" % cand)
 
 
 def text_of(c):
@@ -71,23 +129,24 @@ def text_of(c):
 
 
 def collect_files(tdir, session):
+    """-> (files, orphans). orphans = session ids that have <id>/subagents but no <id>.jsonl (still scanned)."""
+    mains = {m.stem: m for m in tdir.glob("*.jsonl")}
+    sids, orphans = set(mains), []
+    for d in tdir.iterdir():
+        if d.is_dir() and d.name not in mains and (d / "subagents").is_dir():
+            sids.add(d.name)
+            orphans.append(d.name)
     files = []
-    mains = sorted(tdir.glob("*.jsonl"))
-    for m in mains:
-        sid = m.stem
+    for sid in sorted(sids):
         if session and sid != session:
             continue
-        files.append(("main:" + sid[:8], m))
+        if sid in mains:
+            files.append(("main:" + sid[:8], mains[sid]))
         sub = tdir / sid / "subagents"
         if sub.is_dir():
             for p in sorted(sub.rglob("agent-*.jsonl")):
                 files.append((p.stem, p))
-    if session:  # session folder may exist without its main file
-        sub = tdir / session / "subagents"
-        if sub.is_dir() and not any(s == "main:" + session[:8] for s, _ in files):
-            for p in sorted(sub.rglob("agent-*.jsonl")):
-                files.append((p.stem, p))
-    return files
+    return files, sorted(o for o in orphans if not session or o == session)
 
 
 def main():
@@ -95,18 +154,23 @@ def main():
     ap.add_argument("--project")
     ap.add_argument("--dir")
     ap.add_argument("--session")
-    ap.add_argument("--since", default="")
-    ap.add_argument("--until", default="")
+    ap.add_argument("--since", type=ts_arg, default=None, metavar="TIME")
+    ap.add_argument("--until", type=ts_arg, default=None, metavar="TIME")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
     if not a.project and not a.dir:
         ap.error("give --project or --dir")
+    if a.since and a.until and a.since > a.until:
+        die("--since %s is later than --until %s: the period is empty" % (iso(a.since), iso(a.until)))
     tdir = find_transcript_dir(a.project, a.dir)
-    out = Path(a.out)
-    out.mkdir(parents=True, exist_ok=True)
-    files = collect_files(tdir, a.session)
+    out = Path(norm_path(a.out))
+    files, orphans = collect_files(tdir, a.session)
     if not files:
-        raise SystemExit("no *.jsonl found under %s" % tdir)
+        die("no *.jsonl found under %s%s" % (tdir, " for session %s" % a.session if a.session else ""))
+    out.mkdir(parents=True, exist_ok=True)
+    if orphans:
+        print("note: %d session folder(s) have subagents but no main .jsonl (scanned as their own session): %s" % (
+            len(orphans), ", ".join(o[:8] for o in orphans)))
 
     rows, total_calls, first_ts, last_ts = [], 0, "", ""
     for src, p in files:
@@ -121,8 +185,10 @@ def main():
                 if not isinstance(msg, dict) or not isinstance(msg.get("content"), list):
                     continue
                 ts = d.get("timestamp", "")
-                if (a.since and ts and ts < a.since) or (a.until and ts and ts > a.until):
-                    continue
+                if (a.since or a.until) and ts:
+                    tsd = parse_ts(ts)
+                    if tsd and ((a.since and tsd < a.since) or (a.until and tsd > a.until)):
+                        continue
                 if ts:
                     first_ts = ts if not first_ts or ts < first_ts else first_ts
                     last_ts = ts if ts > last_ts else last_ts
@@ -150,10 +216,13 @@ def main():
     strong = sum(1 for r in rows if r["iserr"] or r["nonzero"])
     meta = dict(transcript_dir=str(tdir).replace("\\", "/"), files=len(files), tool_calls=total_calls, rows=len(rows),
                 strong=strong, weak_only=len(rows) - strong, first_ts=first_ts, last_ts=last_ts,
-                since=a.since, until=a.until, session=a.session or "")
+                since=iso(a.since), until=iso(a.until), session=a.session or "", orphan_sessions=len(orphans))
     (out / "scan_meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
     print("files %d calls %d rows %d strong %d weak-only %d  (%s .. %s)" % (
         len(files), total_calls, len(rows), strong, len(rows) - strong, first_ts[:16], last_ts[:16]))
+    if total_calls == 0:
+        print("WARNING: 0 tool calls found in %d file(s) - this is NOT 'no failures'. Check --since/--until "
+              "(%s .. %s), --session and --dir (%s)." % (len(files), iso(a.since) or "start", iso(a.until) or "end", tdir))
 
 
 if __name__ == "__main__":

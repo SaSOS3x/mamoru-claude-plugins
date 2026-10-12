@@ -37,7 +37,7 @@ def main(scan_dir):
     line('INFO', f'stdout encoding {enc_out}, open() default {enc_open}, PYTHONIOENCODING={pio}, PYTHONUTF8={pu8}')
     if (enc_out or '').lower().replace('-', '') != 'utf8':
         line('WARN', 'stdout is not UTF-8: print() of non-cp1251 text raises UnicodeEncodeError '
-                     '(set PYTHONIOENCODING=utf-8 or PYTHONUTF8=1)')
+                     '(set PYTHONIOENCODING=utf-8 or PYTHONUTF8=1; with `python -I` the variables are ignored, use `python -I -X utf8`)')
     if (enc_open or '').lower().replace('-', '') != 'utf8':
         line('WARN', 'open() without encoding= reads/writes text in %s, not UTF-8 '
                      '(PYTHONIOENCODING does not change this; pass encoding="utf-8" or set PYTHONUTF8=1)' % enc_open)
@@ -73,7 +73,9 @@ def main(scan_dir):
 
     std = getattr(sys, 'stdlib_module_names', set())
     shadow = [f.name for f in pathlib.Path(scan_dir).glob('*.py') if f.stem in std]
-    if shadow:
+    if not pathlib.Path(scan_dir).is_dir():
+        line('WARN', f'{scan_dir}: folder does not exist (or is not a folder), nothing was scanned; check the path')
+    elif shadow:
         line('WARN', f'{scan_dir}: files named like stdlib modules {shadow}: they hide the real module for every '
                      'script in this folder and for `python -c` run here; rename or use `python -I`')
     else:

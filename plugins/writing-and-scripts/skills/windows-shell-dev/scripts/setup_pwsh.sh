@@ -3,9 +3,10 @@
 # already available, so Validate-Embedded.ps1 and any Run-Tests.ps1 harness can
 # run under the real interpreter.
 #
-# The sandbox frequently has no pwsh. Rather than skip real parse-validation,
-# drop in the portable Linux build. Idempotent: if pwsh is already on PATH or
-# already installed at the target, it just prints the path.
+# LINUX ONLY. The sandbox frequently has no pwsh. Rather than skip real
+# parse-validation, drop in the portable Linux build. Idempotent: if pwsh is
+# already on PATH or already installed at the target, it just prints the path.
+# On Windows it refuses (use powershell.exe 5.1, see Validate-Embedded.ps1).
 #
 # Usage:  bash setup_pwsh.sh [version]
 #         eval "$(bash setup_pwsh.sh --print-path)"   # to get PWSH=... for a caller
@@ -21,6 +22,16 @@ if command -v pwsh >/dev/null 2>&1; then
     [ "${PRINT_ONLY}" = "1" ] && echo "PWSH=$(command -v pwsh)" || \
         echo "pwsh already on PATH: $(command -v pwsh) ($(pwsh -v 2>/dev/null))"
     exit 0
+fi
+
+# This script installs the LINUX build of PowerShell into /opt/pwsh. On Windows
+# (Git Bash / MSYS / Cygwin: uname is MINGW64_NT-..., MSYS_NT-..., CYGWIN_NT-...)
+# and on macOS that build cannot run, so refuse before downloading anything.
+if [ "$(uname -s)" != "Linux" ]; then
+    echo "setup_pwsh.sh: refused - this installs the Linux build of PowerShell and this system is '$(uname -s)'." >&2
+    echo "On Windows no install is needed: Windows PowerShell 5.1 (powershell.exe) is built in and runs Validate-Embedded.ps1:" >&2
+    echo "  powershell.exe -NoProfile -ExecutionPolicy Bypass -File <skill folder>/scripts/Validate-Embedded.ps1 -CmdFile script.cmd" >&2
+    exit 1
 fi
 
 # Already installed at target?

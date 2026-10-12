@@ -9,8 +9,12 @@ drifts from the batch:
 
 ```
 cp <new DCX.bat> <dcx-py>/reference/DCX.bat
-python scripts/extract_baseline.py --repo <dcx-py>
+python "<skill folder>/scripts/extract_baseline.py" --repo <dcx-py>
 ```
+
+`<skill folder>` is the folder of this skill: the same path the commands in SKILL.md already
+show (this file is read as plain text, so no path is filled in here). Run the command from the
+project, not from the skill folder.
 
 Exit 0 prints a `gate green` summary; exit 1 lists UNMAPPED adb lines and structural
 failures (SurfaceFlinger review-table drift, missing backup-capture keys, missing feature

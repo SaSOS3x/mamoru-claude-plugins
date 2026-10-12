@@ -20,7 +20,7 @@ comment hoisted above a piped block, `||` on either side of a block, a line-lead
 `@rem` whose ')' was never meant to close anything, an inline rem at top level, an
 inline rem whose parens are its own, and a quoted "& rem".
 
-Run:  python3 tests/test_rem_regression.py
+Run:  python tests/test_rem_regression.py
 Exit: 0 = pass, 1 = a detection regression or a new false positive.
 """
 

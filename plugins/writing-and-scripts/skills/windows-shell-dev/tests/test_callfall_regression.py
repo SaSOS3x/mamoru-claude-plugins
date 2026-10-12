@@ -21,7 +21,7 @@ flagged lines in both directions:
     That last one is why the rule reads block depth from the parser simulation
     instead of from indentation.
 
-Run:  python3 tests/test_callfall_regression.py
+Run:  python tests/test_callfall_regression.py
 """
 import pathlib
 import re

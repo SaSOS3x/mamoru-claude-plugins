@@ -17,7 +17,7 @@ false-positive traps that surfaced while widening the check (a legit
 `( echo a & echo b )`, a quoted-if with a clean body, a quoted `set "x=(y)"`,
 top-level parens, escaped `^(...^)`, and for-in structural parens).
 
-Run:  python3 tests/test_paren_regression.py
+Run:  python tests/test_paren_regression.py
 Exit: 0 = pass, 1 = a detection regression or a new false positive.
 """
 

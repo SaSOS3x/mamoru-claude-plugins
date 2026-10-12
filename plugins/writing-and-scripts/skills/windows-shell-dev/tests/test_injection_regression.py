@@ -23,7 +23,7 @@ pair is as useless as one that fires on neither.
 Expectations come from the marker comments, so the fixture is the single source
 of truth - add a case to the .cmd and this test picks it up.
 
-Run:  python3 tests/test_injection_regression.py
+Run:  python tests/test_injection_regression.py
 """
 import pathlib
 import re

@@ -16,7 +16,7 @@ marker line, a `set /p x=<file` read between the rows, a Y/N row and a 3-wide gr
 :Menu / :Menu_ask split, a computed goto, a value prompt, and the last option handled by a
 catch-all goto that leaves the menu.
 
-Run:  python3 tests/test_menuscan_regression.py
+Run:  python tests/test_menuscan_regression.py
 Exit: 0 = pass, 1 = a detection regression or a new false positive.
 """
 

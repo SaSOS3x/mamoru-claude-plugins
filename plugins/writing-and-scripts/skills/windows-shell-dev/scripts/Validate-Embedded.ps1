@@ -11,7 +11,13 @@
     also parse-check (and run) a harness such as tests/Run-Tests.ps1.
 
     Exit code is nonzero if any snippet or the harness fails to parse, so it
-    slots into CI next to the batch analyzer.
+    slots into CI next to the batch analyzer. Exit codes: 0 = valid (or no
+    embedded PowerShell found - a warning is printed then), 1 = a snippet or the
+    harness is bad, 2 = a file named on the command line does not exist.
+
+    Works in Windows PowerShell 5.1 (powershell.exe, built into Windows) and in
+    pwsh 7. In a snippet, \" (the way powershell.exe's command line writes a
+    quote) is turned into " before parsing.
 
 .PARAMETER CmdFile
     Path to the .cmd/.bat file whose embedded PowerShell should be validated.
@@ -23,6 +29,7 @@
     If set, also execute the harness (after it parses cleanly).
 
 .EXAMPLE
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File Validate-Embedded.ps1 -CmdFile PerfTweaks.cmd
     pwsh -NoProfile -File Validate-Embedded.ps1 -CmdFile PerfTweaks.cmd
     pwsh -NoProfile -File Validate-Embedded.ps1 -CmdFile PerfTweaks.cmd -Harness tests/Run-Tests.ps1 -RunHarness
 #>
@@ -42,23 +49,28 @@ function Test-Snippet([string] $code) {
     return $errs
 }
 
-if (-not (Test-Path $CmdFile)) {
-    Write-Error "CmdFile not found: $CmdFile"
+# Exit codes (documented): 0 = all valid, 1 = a snippet or the harness is bad,
+# 2 = a file named on the command line does not exist. Write-Error would throw
+# under $ErrorActionPreference = 'Stop' and turn the 2 into a 1, so print instead.
+if (-not (Test-Path -LiteralPath $CmdFile)) {
+    [Console]::Error.WriteLine("CmdFile not found: $CmdFile")
     exit 2
 }
 
-$text = [IO.File]::ReadAllText((Resolve-Path $CmdFile))
+$text = [IO.File]::ReadAllText((Resolve-Path -LiteralPath $CmdFile))
 
 # Same shape as extract_ps.py: powershell|pwsh ... -Command "body", with \" treated
 # as an escaped quote so commands containing literal quotes aren't truncated.
 $rx = [regex]'(?i)\b(?:powershell|pwsh)\b[^"\r\n]*?\s(?:-Command|-c|/c)\s+"((?:[^"\\]|\\.)*)"'
-$matches = $rx.Matches($text)
+$found = $rx.Matches($text)
 
-Write-Host "Found $($matches.Count) embedded PowerShell command(s) in $CmdFile"
+Write-Host "Found $($found.Count) embedded PowerShell command(s) in $CmdFile"
 $idx = 0
-foreach ($m in $matches) {
+foreach ($m in $found) {
     $idx++
-    $code = $m.Groups[1].Value
+    # Inside the cmd line, \" is how the powershell.exe command line writes a quote;
+    # the PowerShell parser must see the quote itself, not the backslash.
+    $code = $m.Groups[1].Value.Replace('\"', '"')
     $errs = Test-Snippet $code
     if ($errs.Count -eq 0) {
         Write-Host ("  [OK ] snippet #{0} ({1} chars)" -f $idx, $code.Length)
@@ -72,13 +84,13 @@ foreach ($m in $matches) {
 }
 
 if ($Harness) {
-    if (-not (Test-Path $Harness)) {
-        Write-Error "Harness not found: $Harness"
+    if (-not (Test-Path -LiteralPath $Harness)) {
+        [Console]::Error.WriteLine("Harness not found: $Harness")
         exit 2
     }
     $herrs = $null
     [System.Management.Automation.Language.Parser]::ParseFile(
-        (Resolve-Path $Harness), [ref]$null, [ref]$herrs) | Out-Null
+        (Resolve-Path -LiteralPath $Harness), [ref]$null, [ref]$herrs) | Out-Null
     if ($herrs.Count -eq 0) {
         Write-Host "Harness parses clean: $Harness"
     }
@@ -90,7 +102,7 @@ if ($Harness) {
 
     if ($RunHarness -and $herrs.Count -eq 0) {
         Write-Host "`n--- running harness ---"
-        & (Resolve-Path $Harness)
+        & (Resolve-Path -LiteralPath $Harness)
         if ($LASTEXITCODE -ne 0) {
             $failures++
             Write-Host "Harness exited with code $LASTEXITCODE"
@@ -103,5 +115,13 @@ if ($failures -gt 0) {
     Write-Host "FAILED: $failures problem(s)."
     exit 1
 }
-Write-Host "All embedded PowerShell valid."
+if ($found.Count -eq 0) {
+    # Nothing was parsed: do not print the green line. Either the file has no
+    # embedded PowerShell, or the regex missed the way it is written (e.g. the
+    # body is not in double quotes, or it is built from variables).
+    Write-Host "WARNING: no embedded PowerShell found in $CmdFile - nothing was validated."
+    if ($Harness) { Write-Host "(The harness was checked above.)" }
+    exit 0
+}
+Write-Host "All embedded PowerShell valid ($($found.Count) command(s) checked)."
 exit 0

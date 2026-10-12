@@ -17,7 +17,7 @@ flagged line must end in whitespace and nothing else. Expectations are derived f
 lines starting "rem --- FLAG:" + 1, not from a bare MUSTFLAG search - the fixture's
 own header explains the convention and would otherwise count itself.
 
-Run:  python3 tests/test_caret_ws_regression.py
+Run:  python tests/test_caret_ws_regression.py
 """
 import pathlib
 import re

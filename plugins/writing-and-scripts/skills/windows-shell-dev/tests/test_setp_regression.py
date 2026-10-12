@@ -17,7 +17,7 @@ window), a default-value assignment (`set "s3=1"`), a compound
 top, first prompt safe, second prompt of the same var flagged) so the "stop at
 an earlier prompt" logic holds.
 
-Run:  python3 tests/test_setp_regression.py
+Run:  python tests/test_setp_regression.py
 Exit: 0 = pass, 1 = a detection regression or a new false positive.
 """
 
