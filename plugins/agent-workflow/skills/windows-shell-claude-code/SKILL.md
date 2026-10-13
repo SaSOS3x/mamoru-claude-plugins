@@ -1,6 +1,6 @@
 ---
 name: windows-shell-claude-code
-description: "Как агенту Claude Code на Windows не ломать команды: инструмент Bash (Git Bash) запускает родные Windows python.exe и JDK, и на стыке ломаются кавычки и heredoc, пути /c/ против C:/, кодировка cp1251, коды выхода, CRLF, имена модулей, JAVA_HOME на другом JDK, лимит 32 тыс. знаков (classpath для javap). Метод: проба окружения, скрипт в файл, пути C:/, проверка по тексту вывода. Для любого проекта на этом ПК. НЕ про написание .bat/.cmd (это windows-shell-dev). Use at the start of work in a new project, before the first python/java/javap command, and on UnicodeEncodeError, 'Argument list too long', 'class not found', 'unexpected EOF', FileNotFoundError on /c/..., or exit 0 with an error in the output. Фразы: 'команда упала в bash', 'кракозябры', 'javap не находит класс', 'не та версия Java'."
+description: "Как агенту Claude Code на Windows не ломать команды: инструмент Bash (Git Bash) запускает родные Windows python.exe и JDK, и на стыке ломаются кавычки и heredoc, пути /c/ против C:/, кодировка cp1251, коды выхода, CRLF, имена модулей, JAVA_HOME на другом JDK, лимит 32 тыс. знаков (classpath для javap). Метод: проба окружения, скрипт в файл, пути C:/, проверка по тексту вывода. Для любого проекта на этом ПК. НЕ про написание .bat/.cmd (это windows-shell-dev). Use at the start of work in a new project, before the first python/java/javap command, and on UnicodeEncodeError, ModuleNotFoundError after python -I, 'Argument list too long', 'class not found', 'unexpected EOF', FileNotFoundError on /c/..., or exit 0 with an error in the output. Фразы: 'команда упала в bash', 'кракозябры', 'javap не находит класс', 'не та версия Java'."
 ---
 
 # Оболочка Claude Code на Windows: Git Bash, python.exe, JDK
@@ -42,6 +42,12 @@ Git Bash переписывает часть аргументов, Windows не 
    (флаг `-X utf8` не зависит от окружения; в этом режиме `open()` тоже UTF-8). `PYTHONUTF8=1` чинит оба случая, но ломает `subprocess(text=True)` для консольных
    программ Windows: их вывод в cp866, получается UnicodeDecodeError (проверено на `net helpmsg 2`). Такой вывод
    читай байтами: `.decode('cp866', errors='replace')`. Менять переменные окружения без согласия пользователя нельзя.
+   **`-I` отключает и пакеты пользователя** (`pip install --user`, здесь Pillow и openpyxl): `ModuleNotFoundError: No module
+   named 'PIL'` (проверено 2026-10-13, `sys.flags.no_user_site` 1). Окружение Claude Code просит `-I` для скачанных файлов, и
+   агенты переносят это на всё подряд: в одном этапе порта DeceasedCraft так споткнулись 3 агента из 8. `-I` нужен там, где
+   его требует окружение: скрипт читает файлы, которые агент сам скачал или распаковал из сети. Файлы проекта и пользователя
+   (его моды, его данные, свои черновики) к ним не относятся, такие скрипты запускай без `-I`. Если скрипту по скачанным файлам
+   нужен пакет pip, не снимай `-I` сам, а спроси пользователя.
 4. **Код выхода врёт (59 % сбоев имели exit 0).** `cmd | head`, цепочка через `;`, `2>&1`, цикл дают код последней команды.
    Проверено: `python нет.py | head` даёт 0 (`${PIPESTATUS[*]}` показывает `2 0`); `set -o pipefail` даёт 2.
    Делай: читай вывод на `Traceback|Error|Exception|No such file|not found|cannot|Argument list too long`,
