@@ -49,3 +49,12 @@ PYTHONIOENCODING. Вреда не было, скрипты сами перекл
 предложенное правило ловит все 7 команд PowerShell аудита, и без повторного прогона на периоде DeceasedCraft счёт паспорта
 сломается. Скрипты не менялись.
 Проверено: формат записи attachment проверен по журналу агента этой сессии; факты сверены проверяющими. Разбор: `_project/skills-lab/a1-2026-10-15.md` и `_project/JOURNAL.md` проекта Space Journey.
+
+## 2026-10-15 | Импорт CLAUDE.md вне папки сессии проверен: нужен флаг пользователя
+Что: вместо пометки "способ по документации, делом не проверен" сказано, что импорт файла вне папки сессии загружается только с
+флагом hasClaudeMdExternalIncludesApproved у проекта в ~/.claude.json, диалога в приложении нет, флаг ставит пользователь.
+Почему: импорт CLAUDE.md из папки игры в проекте Space Journey 2026-10-15 сначала не загрузился. В ~/.claude.json у проекта
+hasClaudeMdExternalIncludesApproved false и hasClaudeMdExternalIncludesWarningShown false: приложение Claude диалог разрешения не
+показало, и Claude Code молча пропустил импорт (найдено в claude.exe: ClaudeMdExternalIncludesDialog, "Yes, allow external imports").
+Пользователь поставил оба флага в true при закрытом приложении, и в новой сессии CLAUDE.md проекта дошёл: запись attachment типа
+instructions содержит его (10 815 знаков).
