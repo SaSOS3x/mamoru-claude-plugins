@@ -60,6 +60,8 @@ After each step, an entry is appended to the journal with a strict heading, `## 
 
 The section "Человек в контуре" (human in the loop, added 2026-10-15) covers the part of the check that only the user can do. Before launching anything the user will see or hear, the agent says what will open, how long it takes, whether the window may be touched and what to watch, and removes sound and first-run screens beforehand, calling removed only what it has checked. What the user reports from the screen is a test result: it goes into the journal and its cause is searched for. A task whose criterion is a human impression stays "awaiting check" until the user's verdict, and at milestones the agent waits for an answer.
 
+The journal is compacted instead of retold (added 2026-10-15). `scripts/journal_compact.py check` runs at the start of a session; past 400 lines, `compact --keep 15` moves every older entry verbatim to `JOURNAL-архив.md` and refreshes an index at the top of the journal, writing nothing unless the moved text is found in the archive byte for byte. The agent then writes a summary of at most 30 lines in which every line ends with a reference to its source entry; `verify` rejects lines without a valid reference, and a second agent checks the meaning of each line against the archive.
+
 ### agent-delegation
 
 Triggers before any Agent, Workflow or SendMessage call and on phrases like "run it in parallel", "which model should I use", "we're out of limits", "check the agent's work".
