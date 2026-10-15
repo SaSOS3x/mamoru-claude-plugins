@@ -13,7 +13,7 @@
     {
       "name": "agent-workflow",
       "source": "./plugins/agent-workflow",
-      "description": "How Claude Code works with agents and learns from its own work: model choice and briefs for subagents, error post-mortems, decision conflicts shown to the user, a session error audit with scripts, skills built from verified experience (skill-forge), a project journal with checked steps (project-journal), Windows shell traps (beta)."
+      "description": "How Claude Code works with agents and learns from its own work: model choice and briefs for subagents, error post-mortems, decision conflicts shown to the user, a session error audit with scripts, skills built from verified experience (skill-forge), a project journal with checked steps (project-journal), Windows shell traps (beta), looking up prices and delivery on websites like a regular visitor (browse-like-user)."
     },
     {
       "name": "writing-and-scripts",
