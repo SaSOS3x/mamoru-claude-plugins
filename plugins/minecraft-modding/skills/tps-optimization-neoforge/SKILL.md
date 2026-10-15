@@ -43,6 +43,14 @@ verified in the DeceasedCraft port (NeoForge 21.1.x, October 2026) - re-check th
   (singleplayer pause; a big spike right after "Saving chunks for level ..." lines is usually Esc), first join;
   `/reload` takes ~6 s (expected).
   A log of more than ~10 MB per session = spam: every stack trace is built on the thread that logs it.
+- **Reading `Can't keep up`** (MinecraftServer.runServer, MC 1.21.1): the number is the lag accumulated since the last
+  warning, not a rate. It is printed only when the server is more than 1 s + 20 ticks behind (2 s at 20 TPS), at most once
+  per 10 s + 100 ticks of schedule (300 ticks), and then the whole ticks of lag are written off
+  (`nextTickTimeNanos += (lag / tickLength) * tickLength`). Do not read N ms as a rate (per minute or per tick): it is the
+  backlog of the last ~300 ticks. Under sustained overload MSPT = wall time between two warnings / 300 = 50 + N / 300 ms,
+  TPS = 1000 / MSPT. A single long tick is found in the lines 0-3 s before its warning; sustained overload builds up over the
+  whole interval since the previous warning, so look at everything between the two. Example (Space Journey, 2026-10-14):
+  warnings with N = 30-37 s were first read as 1-2 TPS; the real rate from their timestamps was 5.7-7.3 TPS.
 - Separate server lag from client FPS: `[Server thread]` / TPS vs `[Render thread]` / FPS (a GPU / render problem
   is not a TPS problem).
 - Memory: ask for the launcher's `-Xmx` and the RAM. Too small heap = frequent GC stutter, far too big = long pauses.

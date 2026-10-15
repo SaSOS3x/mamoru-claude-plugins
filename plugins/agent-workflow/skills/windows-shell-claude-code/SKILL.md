@@ -1,13 +1,14 @@
 ---
 name: windows-shell-claude-code
-description: "Как агенту Claude Code на Windows не ломать команды: инструмент Bash (Git Bash) запускает родные Windows python.exe и JDK, и на стыке ломаются кавычки и heredoc, пути /c/ против C:/, кодировка cp1251, коды выхода, CRLF, имена модулей, JAVA_HOME на другом JDK, лимит 32 тыс. знаков (classpath для javap). Метод: проба окружения, скрипт в файл, пути C:/, проверка по тексту вывода. Для любого проекта на этом ПК. НЕ про написание .bat/.cmd (это windows-shell-dev). Use at the start of work in a new project, before the first python/java/javap command, and on UnicodeEncodeError, ModuleNotFoundError after python -I, 'Argument list too long', 'class not found', 'unexpected EOF', FileNotFoundError on /c/..., or exit 0 with an error in the output. Фразы: 'команда упала в bash', 'кракозябры', 'javap не находит класс', 'не та версия Java'."
+description: "Как агенту Claude Code на Windows не ломать команды: инструмент Bash (Git Bash) запускает родные Windows python.exe и JDK, и на стыке ломаются кавычки и heredoc, пути /c/ против C:/, кодировка cp1251, коды выхода, CRLF, имена модулей, JAVA_HOME на другом JDK, лимит 32 тыс. знаков (classpath для javap). Метод: проба окружения, скрипт в файл, пути C:/, проверка по тексту вывода. Для любого проекта на этом ПК. НЕ про написание .bat/.cmd (это windows-shell-dev). Use at the start of work in a new project, before the first python/java/javap command, and on UnicodeEncodeError, ModuleNotFoundError after python -I, 'Argument list too long', 'class not found', 'unexpected EOF', FileNotFoundError on /c/..., 'Remove-Item on system path is blocked', a decimal comma in CSV or PowerShell output, 'script contains control characters', or exit 0 with an error in the output. Фразы: 'команда упала в bash', 'кракозябры', 'javap не находит класс', 'не та версия Java'."
 ---
 
 # Оболочка Claude Code на Windows: Git Bash, python.exe, JDK
 
 Инструмент Bash здесь это Git Bash (MSYS), а `python`, `java`, `javap` это родные Windows-программы. Ловушки лежат на стыке:
 Git Bash переписывает часть аргументов, Windows не знает путей `/c/...`, консольная кодировка cp1251, у командной строки лимит.
-Всё ниже проверено на этом ПК 2026-10-12 (Git Bash MINGW64, Python 3.14.7, JDK 21.0.8 и 17); непроверенное помечено.
+Основное проверено на этом ПК 2026-10-12 (Git Bash MINGW64, Python 3.14.7, JDK 21.0.8 и 17); пункты с датой 2026-10-15 проверены
+в тот день (2, 6, 11 и `&&` в PowerShell командами, 12 и javap по журналам сессии Space Journey); непроверенное помечено.
 Числа "N сбоев" это аудит 331 упавшей команды из проекта DeceasedCraft (не пересчитаны мной).
 Граница с `windows-shell-dev`: тот навык про написание и отладку файлов .bat/.cmd, этот про то, как агент запускает команды.
 
@@ -29,7 +30,10 @@ Git Bash переписывает часть аргументов, Windows не 
    Делай: код в файл через Write.
 2. **Пути /c/ (20 сбоев).** `os.path.exists('/c/Users/Alexandr')` даёт False (Windows читает как `C:\c\Users\...`).
    Git Bash сам превращает в `C:/...` только целый аргумент командной строки (`/c/x`, `--cp=/c/x`, `/tmp`);
-   НЕ превращает пути внутри кода и файлов Python и в списках через `;` (`/c/a;/c/b` дошло как есть).
+   НЕ превращает пути внутри кода и файлов Python и в списках через `;` (`/c/a;/c/b` дошло как есть). То же со значением
+   переменной оболочки, подставленным в код: `R=/c/Users; python -c "...exists('$R')"` даёт False, а `"$R"` отдельным
+   аргументом доходит как `C:/Users` (проверено 2026-10-15). Делай: давай переменной значение с `C:/` (`R=C:/Users`) или передавай
+   путь Python отдельным аргументом `"$R"`.
    `/tmp` для Python это `C:\tmp`, а для Git Bash `%TEMP%`: два разных места, используй scratchpad.
    `glob('C:/x/*/')` возвращает `C:/x\dir\`: обрезай `rstrip('/\\')` перед `basename`.
 3. **Кодировка (23 сбоя).** Без настройки stdout это cp1251: `print('\u2192')` даёт UnicodeEncodeError.
@@ -57,7 +61,10 @@ Git Bash переписывает часть аргументов, Windows не 
 6. **CRLF.** `grep -c $'\r' file` печатает 0 на файле с CRLF (проверено: 3 строки CRLF, ответ 0). Считай по байтам:
    `python "${CLAUDE_SKILL_DIR}/scripts/eol.py" файлы` (CRLF / LF / CR, BOM, MIXED) или `tr -cd '\r' < file | wc -c`.
    Файл с байтами NUL eol.py называет BINARY и окончания не считает. Исключение: UTF-16 с BOM (так пишет `>` в Windows
-   PowerShell 5.1), такой текст он раскодирует и считает как обычный.
+   PowerShell 5.1), такой текст он раскодирует и считает как обычный. Python на Windows сам пишет CRLF: `open(p, 'w')` и
+   `Path.write_text` переводят `\n` в `\r\n`, и прочитанный LF-файл при записи назад тоже становится CRLF. Файл, который должен
+   остаться LF, пиши через `open(p, 'w', newline='')` (или `newline='\n'`). Так файл-скрипт для инструмента Workflow, переписанный
+   Python-ом, получил CR, и Workflow отказал: "script contains control characters" (2026-10-15).
 7. **Имя скрипта = имя модуля stdlib.** `json.py`, `struct.py`, `types.py`, `random.py` рядом со скриптом или в текущей
    папке (даже для `python -c`) перекрывают настоящий модуль: `AttributeError: module 'json' has no attribute 'dumps'`,
    сломанный `zipfile`. Не называй так черновики; `python -I -X utf8` (изолированный режим) игнорирует и папку скрипта, и текущую (а `-I` без `-X utf8` оставляет cp1251, см. ловушку 3).
@@ -77,16 +84,32 @@ Git Bash переписывает часть аргументов, Windows не 
     В Git Bash есть `unzip`, нет `zip` (проверено): `python -m zipfile -c`. Read режет файл больше 25 тыс. токенов:
     offset/limit (из журнала, 2 раза). Write у подагента отказывался писать `.md` (из журнала, 2 раза); в сессии, где
     написан этот навык, подагент записал `.md` через Write без отказа, так что это нестабильно: при отказе пиши через Python.
+11. **Запятая в дробных числах (локаль ru-RU).** В PowerShell `'{0:F1}' -f 1.5` и `(1.5).ToString()` дают `1,5`, а
+    `[string]1.5` и `(1.5).ToString([cultureinfo]::InvariantCulture)` дают `1.5` (проверено 2026-10-15). Java `String.format`
+    без `Locale.ROOT` тоже ставит запятую: в проекте Space Journey CSV замера из-за этого разъехался по столбцам. Числа в файлы
+    пиши через `Locale.ROOT` в Java и InvariantCulture в PowerShell.
+12. **Удаление в инструменте PowerShell.** Защита инструмента отклоняла `Remove-Item` в длинных командах из нескольких операторов
+    ("Remove-Item on system path ... is blocked", 2 из 3 таких команд), а отдельные команды `Remove-Item -LiteralPath "<полный
+    путь>" -Recurse -Force -Confirm:$false -ErrorAction Stop` с литеральным путём в двойных кавычках прошли 4 из 4 (2026-10-15, по
+    журналу сессии Space Journey; причина отказа не выяснена). Путь с апострофом (`Mamoru's Projects`) бери только в двойные
+    кавычки. Удаляй отдельной командой только то, что создал сам; запрет среды не обходи через Python или Bash, а скажи
+    пользователю.
 
 ## Проверка результата
 - `env_probe.py` без WARN, которые касаются вашей команды; после своего скрипта: файл существует, размер больше 0, в выводе
   нет `Traceback`.
-- Для javap: сначала `javap -cp cp.jar известный.класс`, потом нужный; "class not found" значит неполный classpath, а не плохой класс.
+- Для javap: сначала `javap -cp cp.jar известный.класс`, потом нужный. "class not found" бывает и при полном classpath: в 7
+  случаях из 7 (аудит 2026-10-15, случаи 2026-10-14) виновато было имя (угаданный пакет, вложенный класс там, где на деле пакет),
+  флаг после имени класса (тогда в ошибке стоит сам флаг: `class not found: -constants`) или относительный `-cp` после неудавшегося
+  `cd`. Сверь имя: для jar `unzip -l файл.jar | grep Имя`, для папки `find папка -name 'Имя*.class'`; вложенный класс бери в
+  одинарные кавычки `'A$B'`; `-cp` давай абсолютным путём.
 
 ## Границы
 - Файлы .bat/.cmd и вложенный в них PowerShell: `windows-shell-dev`. Инструмент PowerShell (Windows PowerShell 5.1) имеет
-  свой синтаксис (по описанию инструмента: нет `&&`, `2>&1` у нативных команд ломает `$?`; я это не проверял). Ловушки про
-  Git Bash (1, 2, 4, 6) к нему не относятся, про Python и Java (3, 7-9) остаются.
+  свой синтаксис (`&&` в Windows PowerShell 5.1 даёт ошибку разбора, проверено 2026-10-15; что `2>&1` у нативных команд ломает
+  `$?`, взято из описания инструмента и не проверялось). Ловушки про
+  Git Bash (1, 2, 4 и счёт CR в 6) к нему не относятся, про Python и Java (3, 7-9 и запись CRLF в 6) остаются, 11 и 12 про него
+  самого (11 ещё и про Java).
 - Если в проекте есть своя обёртка (например javap с готовым classpath), используй её, а не `classpath_jar.py`.
 - Состояние проекта (версии модов, пути инструкций, статус работ) сюда не писать: это дневник проекта.
 - Скрипты (у всех есть `--help`, только stdlib, вывод ASCII): `env_probe.py [папка]` (несуществующая папка даёт WARN, код всегда 0),
@@ -99,5 +122,7 @@ Git Bash переписывает часть аргументов, Windows не 
 Проверен: 2026-10-12, Git Bash MINGW64 (Git 2.56), Python 3.14.7, JDK 21.0.8 / 17.0.14: 20 проверок на ПК (см. журнал) и две
 независимые проверки плагинов в отдельной сессии (подагенты с чистым контекстом загрузили навык и прогнали скрипты по тексту,
 найденное исправлено). Сравнения с навыком и без него на новых задачах (skill-forge, шаг 5, проверка 2) не было.
+Дополнено 2026-10-15: /c/ из переменной, CRLF от Python, запятая ru-RU и `&&` в PowerShell проверены командами на этом ПК;
+Remove-Item и javap взяты из журналов сессии Space Journey, сравнения с навыком и без него не было.
 Границы: не для .bat/.cmd; пути JDK и PATH относятся к этому ПК, у других машин сначала `env_probe.py`
 История изменений: CHANGELOG.md в папке навыка (что, когда и почему; там же решения, которые не нужно отменять).
