@@ -12,7 +12,9 @@
   - русское слово, которого нет в словаре, но есть в списке терминов -> ru-RU + noProof;
   - остальной русский текст -> ru-RU, Word проверяет его как обычно;
   - русские слова, которых нет ни в словаре, ни в списках, выводятся списком на разбор:
-    опечатка -> исправить текст, верный термин -> добавить префикс в список терминов.
+    опечатка -> исправить текст, верный термин -> добавить префикс в список терминов;
+  - фрагмент, где проверка уже отключена (w:noProof: листинг кода, команда, цитата),
+    остаётся как есть, и его слова на разбор не выводятся: цитату не правят.
 
 Запуск:
   python fix_proofing.py fix   in.docx out.docx [--terms проект.txt ...] [--dict ПАПКА]
@@ -178,6 +180,12 @@ class Checker:
         return segs or None  # None: только пробелы и знаки, фрагмент не трогаем
 
 
+def has_noproof(run):
+    rpr = run.find(q('rPr'))
+    el = rpr.find(q('noProof')) if rpr is not None else None
+    return el is not None and el.get(q('val'), 'true') not in ('0', 'false', 'off')
+
+
 def child(rpr, name):
     el = rpr.find(q(name))
     if el is not None:
@@ -209,6 +217,10 @@ def process_part(xml_bytes, chk, stats):
         content = [c for c in run if c.tag != q('rPr')]
         if len(content) != 1 or content[0].tag != q('t'):
             continue  # поля, рисунки, табуляции не трогаем
+        if has_noproof(run):
+            if (content[0].text or '').strip():
+                stats['kept'] += 1  # код или цитата: проверка отключена заранее, не трогаем
+            continue
         segs = chk.segments(content[0].text or '')
         if segs is None:
             continue
@@ -270,6 +282,7 @@ def cmd_fix(src, dst, chk):
     print(f'Латиница без проверки (en-US, noProof): {stats["lat"]}')
     print(f'Русские термины, аббревиатуры и коды без проверки: {stats["term"]}')
     print(f'Русский текст на проверке Word (ru-RU): {stats["ru"]}')
+    print(f'Фрагменты, где проверка уже отключена (код, цитаты), оставлены как есть: {stats["kept"]}')
     return report(chk)
 
 
@@ -283,8 +296,7 @@ def cmd_check(src, chk):
                 text = ''.join(t.text or '' for t in run.iter(q('t')))
                 if not text.strip():
                     continue
-                rpr = run.find(q('rPr'))
-                if rpr is not None and rpr.find(q('noProof')) is not None:
+                if has_noproof(run):
                     continue
                 if LAT.search(text):
                     bad_lat.append(text)
