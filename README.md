@@ -40,7 +40,7 @@ Inside `SKILL.md` you almost always find the same parts. First comes the order o
 | | lostcities-biome-zones-mixin | biome zones placed by a rule and a city-free strip at their border |
 | | minecraft-worldgen-density-1-21 | terrain: density functions, TerraBlender, measuring without starting the game |
 | | tps-optimization-neoforge | finding and fixing lag |
-| writing-and-scripts | readable-docs | text rules for documents that people read |
+| writing-and-scripts | readable-docs | text rules for documents that people read, and the default layout of a student report in docx |
 | | windows-shell-dev | large `.bat` and `.cmd` files with embedded PowerShell |
 
 ## The agent-workflow plugin
@@ -186,6 +186,8 @@ There are four rules: lists take no more than 30-40% of the text, a plain hyphen
 The check runs in two passes. The first is the script `check_text.py`. It reads docx, md and txt (other formats through pandoc or pdftotext), measures the share of lists and finds dashes, long sentences and bureaucratic phrases. When a hard rule is broken, it exits with code 1. Its list of heavy phrases is Russian, so for an English text that part of the report does not apply. The second pass is about meaning: words, terms, coherence, numbers and references inside the document. The user gets one line with the result of the check. This README was written and checked by the rules of this skill.
 
 For a docx built by a program there is a second script, `fix_proofing.py` (added 2026-10-17). Word picks the spelling dictionary by the language of each text run, so when the whole text is marked Russian it underlines Windows, program names and terms such as «гипервизор» (hypervisor). The script splits the runs by word across the whole document, lists, tables and headers included. Latin words, Russian codes and abbreviations, and terms from the term lists get the "do not check spelling" mark, and the rest of the Russian text is checked by Word as usual. Words missing from the hunspell ru_RU dictionary are not exempted automatically but listed for review, because to a dictionary a typo and a correct term look the same. Common IT terms live in `terms_ru_it.txt`, project terms are passed with `--terms`. Runs where checking was already switched off (code listings, commands, quotations) are left as they are: a quotation is not edited, even if it has a typo. The script needs the lxml and spylls packages and downloads the dictionary itself. The method was checked in Word on a report and on a test document with lists and a table: only the deliberate typo stayed underlined.
+
+For a student report in docx the skill records the default layout (added 2026-10-17). A list item is laid out like a normal paragraph: the hyphen sits at the 1.25 cm first-line indent, and wrapped lines start at the left margin. A figure, a code listing and a table with their captions are separated from the text by one blank line above and below. The same blank line goes before a level-one heading, and paragraph spacing before and after is 0. If the course guidelines or the user ask for something else, the skill follows them. The script `check_layout.py` checks these rules in the finished file and shows where they are broken, with examples.
 
 ### windows-shell-dev
 
