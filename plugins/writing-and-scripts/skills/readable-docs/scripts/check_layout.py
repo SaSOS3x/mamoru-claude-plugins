@@ -8,8 +8,11 @@
   - рисунок с подписью, листинг и таблица отделены пустой строкой сверху и снизу;
   - перед заголовком первого уровня пустая строка (кроме заголовка с новой страницы);
   - пустые строки одиночные, с интервалом как у текста (1,5) и без интервалов перед и после;
-  - у абзацев основной части интервалы перед и после равны 0: отбивки делаются пустыми строками.
-Титульный лист (всё до первого заголовка) не проверяется. Содержимое ячеек таблиц не проверяется.
+  - у абзацев основной части интервалы перед и после равны 0: отбивки делаются пустыми строками;
+  - обозначения с индексами, равенства и расчёты набраны формулами Word (OMML), а не текстом:
+    нет фрагментов с подстрочным или надстрочным начертанием вне формул, символов-индексов (₁, ²)
+    и текста вида «R(6) = 37», «t(i, j)» (это проверяется и в ячейках таблиц).
+Титульный лист (всё до первого заголовка) не проверяется. Отступы и пустые строки в ячейках таблиц не проверяются.
 Код возврата: 0 - нарушений нет, 1 - есть нарушения, 2 - сбой (нет файла, битый docx, нет lxml).
 """
 import argparse
@@ -28,6 +31,19 @@ except ImportError:
     sys.exit(2)
 
 W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+M = 'http://schemas.openxmlformats.org/officeDocument/2006/math'
+INDEX_CHARS = re.compile('[\u2070-\u209f\u00b9\u00b2\u00b3]')       # ⁰¹²³…₀₁₂… вместо индекса формулы
+TEXT_FORMULA = [
+    # переменная (латинская или греческая буква, может быть с индексом и аргументом), затем знак равенства,
+    # сравнения или действия и число либо другая переменная. Стрелки «->» и «<-» знаками не считаются,
+    # плюс считается только с пробелами вокруг (иначе «C++20»), косая черта не считается (иначе «TCP/IP»)
+    re.compile(r'(?<![\w.])[A-Za-zΑ-Ωα-ω][A-Za-z0-9]{0,2}(?:\([^()]{1,15}\))?\s*'
+               r'(?:=|≈|≠|≤|≥|<(?!-)|(?<!-)>|−|×|·|\s\+\s)\s*[-−+]?\s*(?:\d|[A-Za-zΑ-Ωα-ω](?![A-Za-z]{2}))'),
+    # обозначение вида R(i), t(i, j), f(x), R(6)
+    re.compile(r'(?<![\w])[A-Za-z]\((?:[a-z]|\d{1,3})(?:,\s?(?:[a-z]|\d{1,3}))?\)'),
+    # латинская буква с русским индексом в одну строку: Rп, tрн, tкр
+    re.compile(r'(?<![\w])[A-Za-z][а-яё]{1,2}(?![\w])'),
+]
 MONO = {'courier new', 'courier', 'consolas', 'lucida console', 'liberation mono', 'dejavu sans mono',
         'menlo', 'monaco', 'source code pro', 'jetbrains mono', 'cascadia mono', 'cascadia code'}
 
@@ -138,8 +154,9 @@ def has_page_break(p):
 
 
 def is_blank(p):
+    """Пустая строка: нет текста, разрыва страницы, рисунка и формулы Word (текст формулы лежит в m:t, а не в w:t)."""
     return (not text_of(p).strip() and not has_page_break(p)
-            and next(p.iter(q('drawing'), q('pict'), q('object')), None) is None)
+            and next(p.iter(q('drawing'), q('pict'), q('object'), f'{{{M}}}oMath'), None) is None)
 
 
 def run_font(r):
@@ -157,6 +174,20 @@ def is_code(p, chain):
         return all(run_font(r) in MONO for r in runs)
     mark = p.find(f'{q("pPr")}/{q("rPr")}')  # пустой абзац: шрифт знака абзаца
     return mark is not None and run_font(mark) in MONO
+
+
+def in_math(el):
+    return any(a.tag.startswith('{%s}' % M) for a in el.iterancestors())
+
+
+def plain_text(p):
+    """Текст абзаца без формул Word; неразрывный дефис считается дефисом, мягкий перенос пропускается."""
+    out = []
+    for n in p.iter(q('t'), q('noBreakHyphen'), q('tab')):
+        if in_math(n):
+            continue
+        out.append(n.text or '' if n.tag == q('t') else '-' if n.tag == q('noBreakHyphen') else ' ')
+    return ''.join(out)
 
 
 def main():
@@ -283,10 +314,39 @@ def main():
         if int(sp.get('before', 0)) or int(sp.get('after', 0)) or int(sp.get('beforeLines', 0)) or int(sp.get('afterLines', 0)):
             bad('интервал перед или после абзаца не 0', it)
 
+    # Формулы: индексы и расчёты только формулами Word (в абзацах и в ячейках таблиц)
+    main_els = [el for el in doc.body if el.tag in (q('p'), q('tbl'))][start:]
+    n_math = sum(1 for el in main_els for _ in el.iter(f'{{{M}}}oMath'))
+    for el in main_els:
+        for p in el.iter(q('p')):
+            if in_math(p) or doc.ppr_layers(p)[2] is not None and is_code(p, doc.ppr_layers(p)[2]):
+                continue
+            text = plain_text(p).strip()
+            flagged = False
+            for r in p.iter(q('r')):
+                if in_math(r) or r.find(q('footnoteReference')) is not None or r.find(q('endnoteReference')) is not None:
+                    continue
+                rs = wv(r.find(f'{q("rPr")}/{q("rStyle")}')) or ''
+                va = wv(r.find(f'{q("rPr")}/{q("vertAlign")}'))
+                if va in ('subscript', 'superscript') and text_of(r).strip() and not re.search(r'(?i)footnote|endnote|сноск', rs):
+                    problems.setdefault('индекс набран текстом (подстрочный или надстрочный знак), а не формулой Word', []).append(text[:60])
+                    flagged = True
+                    break
+            if INDEX_CHARS.search(text):
+                problems.setdefault('символы-индексы (₁, ²) вместо формулы Word', []).append(text[:60])
+                flagged = True
+            for rx in ([] if flagged else TEXT_FORMULA):   # одно место - одно нарушение
+                m = rx.search(text)
+                if m:
+                    problems.setdefault('формула или обозначение набраны текстом, а не формулой Word', []).append(
+                        text[max(0, m.start() - 20):m.end() + 25])
+                    break
+
     total = sum(len(v) for v in problems.values())
     print(f'Проверено элементов основной части: {len(items)}, блоков: {len(blocks)} '
           f'(рисунков {sum(b[2] == "рисунок" for b in blocks)}, таблиц {sum(b[2] == "таблица" for b in blocks)}, '
-          f'листингов {sum(b[2] == "листинг" for b in blocks)}), пунктов списков: {sum(1 for x in items if x.get("list"))}')
+          f'листингов {sum(b[2] == "листинг" for b in blocks)}), пунктов списков: {sum(1 for x in items if x.get("list"))}, '
+          f'формул Word: {n_math}')
     if not total:
         print('Нарушений оформления нет')
         return 0

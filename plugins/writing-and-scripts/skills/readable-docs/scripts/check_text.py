@@ -2,8 +2,9 @@
 """check_text.py - механическая проверка текста по правилам readable-docs.
 Запуск: python check_text.py ФАЙЛ [--max-list 40] [--max-sentence 25]
 Читает .docx .md .txt напрямую, остальное (html, odt, pdf) через pandoc или pdftotext.
-Коды возврата: 0 - жёсткие правила соблюдены; 1 - найдены длинные тире или доля
-списков выше предела; 2 - сбой самого скрипта (нет файла, битый docx, нет pandoc)."""
+Коды возврата: 0 - жёсткие правила соблюдены; 1 - найдены длинные тире, стрелки-символы
+или доля списков выше предела; 2 - сбой самого скрипта (нет файла, битый docx, нет pandoc).
+Текст формул Word (OMML) скрипт не читает: стрелка внутри формулы - часть формулы."""
 import re, subprocess, sys, zipfile
 import xml.etree.ElementTree as ET
 
@@ -16,6 +17,8 @@ for _s in (sys.stdout, sys.stderr):  # на Windows консоль может б
 W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 DASH = {'—': 'длинное тире', '–': 'среднее тире', '‒': 'цифровое тире', '―': 'черта'}
 DASH_RE = re.compile('[‒-―]|(?<=\\s)-{2,3}(?=\\s)')
+# стрелки-символы: блоки Arrows, Supplemental Arrows-A/B, стрелки Dingbats и Miscellaneous Symbols and Arrows
+ARROW_RE = re.compile('[\u2190-\u21ff\u27f0-\u27ff\u2900-\u297f\u2794-\u27af\u2b00-\u2b11\u2b60-\u2b6f\u2b95]')
 BULLET = re.compile('^\\s*(?:[-*+•·▪●‣–—]\\s+|\\(?\\d{1,3}[.)]\\s+|[a-zа-яё]\\)\\s+)')
 LABEL = re.compile(r'^\s*\*\*[^*\n]{1,60}\*\*\s*[:.\-]|^\s*\*\*[^*\n]{1,60}[:.]\*\*')
 SENT = re.compile('(?<=[.!?…])\\s+(?=[A-ZА-ЯЁ«"(\\d])')
@@ -149,12 +152,13 @@ def main():
     body = [(k, t) for k, t in blocks if k in ('p', 'li')]
     total = sum(size(t) for _, t in body) or 1
     share = 100 * sum(size(t) for k, t in body if k == 'li') / total
-    dashes = []
+    dashes, arrows = [], []
     for k, t in blocks:
         if k == 'code':
             continue
         t = re.sub(r'`[^`]*`', ' ', t)  # код внутри строки не трогаем
         dashes += [(DASH.get(m.group(), 'двойной дефис'), t[max(0, m.start() - 30):m.end() + 30].strip()) for m in DASH_RE.finditer(t)]
+        arrows += [(m.group(), t[max(0, m.start() - 30):m.end() + 30].strip()) for m in ARROW_RE.finditer(t)]
     sents = [s for _, t in body for s in SENT.split(t) if s.strip()]
     longs = sorted((s for s in sents if words(s) > max_sent), key=words, reverse=True)
     text = ' '.join(t for _, t in body)
@@ -165,13 +169,16 @@ def main():
     print(f'Длинные тире и их замены: {len(dashes)}' + ('  <-- УБРАТЬ' if dashes else ''))
     for name, ctx in dashes[:15]:
         print(f'   {name}: ...{ctx}...')
+    print(f'Стрелки-символы: {len(arrows)}' + ('  <-- ЗАМЕНИТЬ на ->' if arrows else ''))
+    for ch, ctx in arrows[:15]:
+        print(f'   {ch} (U+{ord(ch):04X}): ...{ctx}...')
     print(f'Предложений: {len(sents)}, длиннее {max_sent} слов: {len(longs)}')
     for s in longs[:5]:
         print(f'   [{words(s)} слов] {s[:110]}...')
     print(f'Тяжёлые обороты: {sum(n for n, _, _ in heavy)}')
     for n, sample, tip in heavy[:12]:
         print(f'   {n} x "{sample}" -> {tip}')
-    bad = bool(dashes) or share > max_list
+    bad = bool(dashes) or bool(arrows) or share > max_list
     print('ИТОГ:', 'НУЖНЫ ПРАВКИ' if bad else 'жёсткие правила соблюдены, подсказки выше проверь глазами')
     sys.exit(1 if bad else 0)
 
