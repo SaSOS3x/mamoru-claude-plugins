@@ -1,14 +1,16 @@
-"""Make blind A/B copies for the judges. Usage: python3 prep_judge.py s1 s2 n1
-judge1 gets A=with, B=without; judge2 gets the reverse. Mapping goes to judge_map.json (not inside judge folders)."""
+"""Make blind A/B copies for the judges.
+Usage: STAND=<stand> JUDGE_DIR=<dir> [WITH=with2] python3 prep_judge.py s1 s2 n1
+judge j1 gets A=<WITH run>, B=without; j2 gets the reverse. The mapping goes to JUDGE_DIR/judge_map.json, outside the judge folders."""
 import json, os, shutil, sys
 
 T2 = os.environ.get('STAND', '/home/claude/skills-build/tests2') + '/runs'
 J = os.environ.get('JUDGE_DIR', '/tmp/judge')
-MAP = os.path.join(os.path.dirname(J), 'judge_map.json')
+MAP = os.path.join(J, 'judge_map.json')  # рядом с папками судей, но не внутри них
 
+WITH = os.environ.get('WITH', 'with')  # имя прогона с навыком: with, with2 ...
 mp = json.load(open(MAP)) if os.path.exists(MAP) else {}
 for sc in sys.argv[1:]:
-    for j, order in (('j1', ('with', 'without')), ('j2', ('without', 'with'))):
+    for j, order in (('j1', (WITH, 'without')), ('j2', ('without', WITH))):
         base = os.path.join(J, f'{sc}-{j}')
         shutil.rmtree(base, ignore_errors=True)
         for label, var in zip('AB', order):

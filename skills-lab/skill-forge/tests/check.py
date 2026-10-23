@@ -10,6 +10,7 @@ AGENTS = {
     's1-with': 'a521ee6fbd25ba21c', 's1-without': 'afb516ee85a1bfca4', 's1-nat': 'a70c44e3ae855eeef',
     's2-with': 'a5b39aafdcca0104d', 's2-without': 'a82a9baa4e4820895', 's2-nat': 'a83cba119779a2298',
     'n1-with': 'a8aa38427fde546d3', 'n1-without': 'a1e73674af25a7e6e', 'n1-nat': 'a91996a10afc91092',
+    's1-with2': 'a04b81abe4bb75a15', 's2-with2': 'a7bc6b105b0a6b8bb', 'n1-with2': 'af24318bf1cbb3ee9',
 }
 
 
