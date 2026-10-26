@@ -1,6 +1,6 @@
 ---
 name: "tps-optimization-neoforge"
-description: "Find and fix lag in a NeoForge 1.21.1 modpack, especially one with KubeJS 2101 scripts and many mobs (zombie / horde packs, Lost Cities, In Control, Enhanced AI): TPS drops, \"Can't keep up\", MSPT spikes, freezes, FPS drops with many mobs or hordes. Method: measure with spark (server and client), read logs/latest.log, then fix hot KubeJS scripts, Java mods and mixins, mod configs and the performance mod set. Use for \"лаги\", \"тпс упал\", \"фризы\", \"фпс просел\", \"тормозит в городе / на орде\", \"оптимизация\", \"разбери профиль\", \"спарк\", a spark link, slow chunk loading after a teleport, or a log full of Can't keep up."
+description: "Find and fix lag in a NeoForge 1.21.1 modpack, especially one with KubeJS 2101 scripts and many mobs (zombie / horde packs, Lost Cities, In Control, Enhanced AI): TPS drops, \"Can't keep up\", MSPT spikes, freezes, FPS drops with many mobs or hordes. Method: measure with spark (server and client), read logs/latest.log, then fix hot KubeJS scripts, Java mods and mixins, mod configs and the performance mod set. Use for \"лаги\", \"тпс упал\", \"фризы\", \"фпс просел\", \"тормозит в городе / на орде\", \"оптимизация\", \"разбери профиль\", \"спарк\", \"зависает при выходе\", a hang on Saving worlds, a spark link, or a log full of Can't keep up."
 ---
 
 # TPS / FPS optimization: KubeJS 2101 scripts + NeoForge 1.21.1 mods
@@ -8,8 +8,8 @@ description: "Find and fix lag in a NeoForge 1.21.1 modpack, especially one with
 Rule: measure first, change one thing, measure again. Code reading only gives candidates; a profile or a log
 correlation decides. Related skills (same plugin, if installed): `kubejs-neoforge-2101` (script API), `neoforge-mod-configs`
 (configs), `modpack-port-neoforge` (porting a pack: folders, converters). Mod facts below carry version stamps; they were
-verified in the DeceasedCraft port (NeoForge 21.1.x, October 2026) - re-check them against your versions. Passages marked
-"In the DeceasedCraft port" are examples of the method, not rules for every pack.
+verified in the DeceasedCraft port and in Space Journey (NeoForge 21.1.x, October 2026) - re-check them against your
+versions. Passages marked "In the DeceasedCraft port" are examples of the method, not rules for every pack.
 
 ## 1. Measure
 - **spark** (NeoForge 1.21.1 build in `mods/`):
@@ -53,6 +53,18 @@ verified in the DeceasedCraft port (NeoForge 21.1.x, October 2026) - re-check th
   warnings with N = 30-37 s were first read as 1-2 TPS; the real rate from their timestamps was 5.7-7.3 TPS.
 - Separate server lag from client FPS: `[Server thread]` / TPS vs `[Render thread]` / FPS (a GPU / render problem
   is not a TPS problem).
+- A hang is not lag: when a tick never ends (stuck on "Saving worlds", a black screen after leaving a world, the server stops
+  answering) read thread stacks, not a profile. Take the `Server thread` stack 2-3 times 5 s apart (`jcmd <pid> Thread.print`
+  of a JDK, or a watchdog thread in your own mod: `Thread.getAllStackTraces()` after a time limit, and in an unattended test
+  run then `Runtime.getRuntime().halt(3)` so it ends); the frames that repeat in every dump are the loop (Space Journey
+  2026-10-16: a watchdog with three dumps found the case in section 4).
+- Compare variants under the same load: an already generated world (a new world generates chunks and LODs in the background
+  for minutes) and nothing else heavy on the PC (builds, other agents' runs; Space Journey 2026-10-16: the same computation took
+  147.9 s alone and 200.1 s next to review agents). Client FPS: the same spot, one factor off at a time, several F3 readings per
+  step (5-25 there); a number from another dimension or another world is no baseline.
+- No spark (e.g. a dev client): JFR on the live JVM, `jcmd <pid> JFR.start settings=profile`, then
+  `jcmd <pid> JFR.dump filename=<f>.jfr` while it runs; the `jdk.ThreadCPULoad` events give the CPU share per thread (the render
+  thread is named `main` there).
 - Memory: ask for the launcher's `-Xmx` and the RAM. Too small heap = frequent GC stutter, far too big = long pauses.
   Java 21: G1 (default) or Generational ZGC (`-XX:+UseZGC -XX:+ZGenerational`). There is no manual memory management
   in Java - the lever is the allocation rate (fewer temporary objects per tick), which `--alloc` shows.
@@ -71,6 +83,8 @@ verified in the DeceasedCraft port (NeoForge 21.1.x, October 2026) - re-check th
 6. Entity count growth: items / XP orbs / projectiles that never despawn, mobs that persist (name tags, picked up
    items, `persistenceRequired`).
 7. Scripts and mixins on hot paths (below).
+8. Client FPS in a pack with Distant Horizons: its distant generation and its LOD rendering (Space Journey 2026-10-21, one PC,
+   DH 3.3.2, LOD radius 256, F3 on one spot: 55 FPS as is, 109 without distant generation, 226 without DH rendering).
 
 ## 3. KubeJS 2101 scripts
 - Tick handlers (`ServerEvents.tick`, `PlayerEvents.tick`, `LevelEvents.tick`) run 20x per second (x players).
@@ -141,6 +155,13 @@ verified in the DeceasedCraft port (NeoForge 21.1.x, October 2026) - re-check th
   may be the input of the same machine and a rejected item jams them; read the target with `javap` over the full classpath
   (in the DeceasedCraft port: `_port/tools/jp.py <class>`, `--find <part>`, `--decompile <class>`) instead of guessing
   descriptors.
+- Server stop that never ends, MC 1.21.1 code (NeoForge 21.1.250; newer builds not checked; no Mojira match on 2026-10-15): at
+  stop `ChunkMap.processUnloads` runs with `hasMoreTime = () -> true`, and a `scheduleUnload` callback whose chunk holder still
+  has generation running puts itself back into `unloadQueue`, while that generation waits for the main thread. Seen in
+  Space Journey 2026-10-16 when the player left a place before its chunks finished generating (teleports, dimension changes,
+  the mod's own load tickets) and quit within seconds. Player workaround: wait a few seconds before quitting. Mod fix: a mixin
+  that lets one `processUnloads` call poll at most as many entries as the queue held at its start (`@WrapOperation` on
+  `Queue.poll`): stop > 180 s without it, "All dimensions are saved" after 11 s with it (tested once).
 
 ## 5. Config levers (verified mod facts)
 - In Control 10.3.0 spawner (`spawner.json`, bytecode): every mob of a rule's `mob` list is tried separately with
@@ -171,7 +192,9 @@ Try one at a time with a profile: Lithium (official NeoForge build; test Create 
 blacklist mobs that must keep full AI), Let Me Despawn (+ Almanac; mobs with picked-up items despawn), Entity
 Culling (client), ModernFix (keep `dynamic_resources` / `dynamic_entity_renderers` off with KubeJS / Connector /
 GeckoLib), FerriteCore, ImmediatelyFast (client; test with Sodium 0.8), AllTheLeaks. Alternatives / low: ServerCore
-(activation range - not together with Immersive Optimization), ScalableLux, Clumps, BadOptimizations, Noisium.
+(activation range - not together with Immersive Optimization), ScalableLux (not with Sable / Create Aeronautics: Sable 2.0.6
+declares it incompatible in its mods.toml, checked 2026-10-23; Sable also refuses Sodium older than 0.8.12-alpha.2), Clumps,
+BadOptimizations, Noisium.
 Do not add: Async, Moonrise (crashes Sable), Radium / Canary / Starlight (replaced), Embeddium next to Sodium, Fabric
 copies through Connector, Universal Optimization (switches collisions off, global spawn caps). MCreatorMemFix has
 no 1.21.1 build and the 1.21.1 MCreator mods do not need it.
@@ -192,6 +215,9 @@ Read them before proposing a step, so as not to repeat one that is already done.
 Создан: 2026-10 из этапа производительности порта DeceasedCraft на NeoForge 1.21.1 (профили spark, байткод модов); журнал порта -
 `_port/skills-lab/` и `_port/HANDOFF.md` (в плагин не входят).
 Проверен: факты о модах - по байткоду и профилям порта на NeoForge 21.1.x, даты и версии в разделах (раздел 6 - 2026-10-08).
+Пункты с пометкой Space Journey - в том проекте 2026-10-14..23 (NeoForge 21.1.250), зависание при остановке и правка - один повтор.
 В журнале нет записи о прогоне навыка целиком в чистом контексте по схеме skill-forge (шаг 5).
+Тест 2026-10-25 (шаг 5 skill-forge, исполнители Opus, судьи Sonnet): только правка S-14 (зависание при остановке), одна задача,
+прежний текст : новый 2:9 и 3:9, новый лучше (прежний обвинил билет мода); S-33, S-34 и S-35 не тестировались.
 Границы: сборки без KubeJS и без большого числа мобов покрыты только разделами 1, 2, 4, 6; версии модов перепроверять.
 История изменений: CHANGELOG.md в папке навыка (что, когда и почему).
