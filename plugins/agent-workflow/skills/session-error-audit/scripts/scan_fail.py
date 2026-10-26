@@ -7,6 +7,9 @@ Each tool_use is paired with its tool_result. A result is recorded as a row when
   - is_error is true, or
   - the text starts with "Exit code N" and N != 0 (hard failure), or
   - the text contains one of the PATTERNS (weak hit; many are noise, classify.py separates them).
+Only "assistant" / "user" records are read and every call and result is counted once by its id: since Claude Code
+2.1.304 (2026-10-21) a transcript also holds "api-request-blob" records without a timestamp that repeat earlier calls,
+and a block of old records can be written a second time.
 
 Usage (Windows and Linux alike, forward slashes are fine):
   python scan_fail.py --project "C:/path/to/project"  --out OUT_DIR
@@ -43,7 +46,7 @@ for _s in (sys.stdout, sys.stderr):  # cp1251 consoles on Windows must not break
 PATTERNS = ["Traceback", "SyntaxError", "unexpected EOF", "UnicodeEncodeError", "UnicodeDecodeError",
             "No such file", "command not found", "cannot access", "not found", "Permission denied", "denied",
             "timed out", "InputValidationError", "File has not been read", "changed on disk",
-            "String to replace not found", "CRLF"]
+            "String to replace not found", "CRLF", "delimited by end-of-file"]
 EXIT_RE = re.compile(r"^\s*Exit code (-?\d+)")
 TS_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:[.,](\d{1,9}))?)?)?\s*"
                    r"(Z|[+-]\d{2}(?::?\d{2})?)?$", re.I)
@@ -175,12 +178,15 @@ def main():
     rows, total_calls, first_ts, last_ts = [], 0, "", ""
     for src, p in files:
         uses = {}
+        seen_res = set()
         with open(p, encoding="utf-8", errors="replace") as f:
             for line in f:
                 try:
                     d = json.loads(line)
                 except Exception:
                     continue
+                if d.get("type") not in ("assistant", "user"):
+                    continue  # api-request-blob repeats earlier blocks and has no timestamp
                 msg = d.get("message")
                 if not isinstance(msg, dict) or not isinstance(msg.get("content"), list):
                     continue
@@ -196,9 +202,14 @@ def main():
                     if not isinstance(c, dict):
                         continue
                     if c.get("type") == "tool_use":
+                        if c.get("id") in uses:
+                            continue  # the same call written twice (a block of old records written again)
                         uses[c.get("id")] = (c.get("name"), c.get("input") or {})
                         total_calls += 1
                     elif c.get("type") == "tool_result":
+                        if c.get("tool_use_id") in seen_res:
+                            continue
+                        seen_res.add(c.get("tool_use_id"))
                         t = text_of(c.get("content"))
                         iserr = bool(c.get("is_error"))
                         m = EXIT_RE.match(t)

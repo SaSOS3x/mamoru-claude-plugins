@@ -8,12 +8,12 @@
     {
       "name": "minecraft-modding",
       "source": "./plugins/minecraft-modding",
-      "description": "Minecraft 1.21.1 NeoForge modpack work: KubeJS 2101 scripts, mod configs, porting a pack from 1.20.1 / 1.18.2, Lost Cities biome zones, worldgen density, TPS / FPS optimization. Worked example: the DeceasedCraft port."
+      "description": "Minecraft 1.21.1 NeoForge modpack work: KubeJS 2101 scripts, mod configs, porting a pack from 1.20.1 / 1.18.2, Lost Cities biome zones, worldgen density, TPS / FPS optimization, autotests of your own mod in Gradle dev runs. Worked examples: the DeceasedCraft port and the Space Journey mod."
     },
     {
       "name": "agent-workflow",
       "source": "./plugins/agent-workflow",
-      "description": "How Claude Code works with agents and learns from its own work: model choice and briefs for subagents, error post-mortems, decision conflicts shown to the user, a session error audit with scripts, skills built from verified experience (skill-forge), a project journal with checked steps (project-journal), Windows shell traps (beta), looking up prices and delivery on websites like a regular visitor (browse-like-user)."
+      "description": "How Claude Code works with agents and learns from its own work: model choice and briefs for subagents, error post-mortems, decision conflicts shown to the user, a session error audit with scripts, skills built from verified experience (skill-forge), a project journal with checked steps (project-journal), proving that a check can fail with mutations (test-mutations), Windows shell traps (beta), looking up prices and delivery on websites like a regular visitor (browse-like-user)."
     },
     {
       "name": "writing-and-scripts",

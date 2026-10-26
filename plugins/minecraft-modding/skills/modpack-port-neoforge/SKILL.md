@@ -29,6 +29,11 @@ that project take the method and the mod facts, and write your own scripts for t
   file you overwrite to `backup_<date>/<same path>` first.
 - Mod jars of your own keep their FILE NAME when replaced (two jars with one mod id would not load); the real version is in
   `META-INF/neoforge.mods.toml` and is independent of the file name (`deceasedcraft-terrain-0.1.0.jar` held mod version 0.2.0).
+- Before adding a jar, list the `modId` of every `[[mods]]` entry in `META-INF/neoforge.mods.toml` of every jar in `mods/` and
+  look for duplicates: one jar can declare a second mod with copied classes at the top level, not jar-in-jar (Cosmonautics
+  26.08.307 declares `dimensional_sable` 1.0.5). The standalone jar of that mod next to it stops FML with
+  `Found duplicate mods`, and the mod list in latest.log names only the first mod of each file (the resource pack line shows
+  `mod/rocketnautics,dimensional_sable`).
 - Inspect jars with `unzip` + `javap` to confirm class / field names.
 - Sandboxed sessions (Cowork cloud) could not reach Modrinth / CurseForge APIs or CDNs (HTTP 403, checked Oct 2026): when a
   session cannot download, propose exact file names / versions (found with web search, CurseForge file lists) and let the user
@@ -81,6 +86,11 @@ Outputs: `out/deceasedcraft-data-<ver>.jar` + `block_remap.csv`, `prop_fixes.csv
    (example: "Test 0.2.2").
 4. Read `logs/latest.log`: your own log lines (DeceasedCraft: `[DeceasedCraft] ...`), crash causes, `Couldn't parse`,
    `Unknown registry key`, `ambiguous`; `logs/debug.log` for config loading (`Loaded TOML config file`).
+   Uncaught exceptions of mod threads (a worker that stops logging, a feature that silently does not start) are not in
+   latest.log or debug.log: read the launcher's console log before reading code (TLauncher: the newest
+   `%TEMP%/tl-logger*.txt`; a Gradle dev run: the task's console output). Example, Space Journey 2026-10-14 (NeoForge
+   21.1.250, TLauncher): DH's dead thread (`Exception in thread ... DH-PostClientInit`, a mixin error) was only there, found
+   after 6 requests of static code reading.
 5. Report what was verified and what is an assumption; keep the project journal current (DeceasedCraft: `game/_port/HANDOFF.md`).
 6. Shell on Windows with Git Bash (verified on one PC, 2026-10-12; in the DeceasedCraft port also in `CLAUDE.md` "Shell traps"):
    scripts longer than a few lines or with backslashes / apostrophes go into a file written with the Write tool, not into
@@ -181,12 +191,21 @@ Reinstall quests after the mods they reference exist (FTB Quests turns unknown i
 - Legendary Survival Overhaul 2.4.7.2 applies limb malus effects as INFINITE effects and removes them through a `malus` map
   that is not saved: after a reload the broken-arm effect stays forever (DeceasedCraft: deceasedcraft-fixes `LsoMalus`). Test
   save / reload of infinite effects whenever a mod uses them.
-- Before installing a worldgen-heavy mod (C2ME and the like) read its jar first (`unzip` nested jars, `javap -v` the mixin
-  targets): the mixin targets and the required mods decide the risk. Alpha builds: never claim it works with the pack until
-  the log shows it.
+- Before installing a worldgen-heavy mod (C2ME and the like), and before installing or UPDATING a mod that another mod
+  patches (compat mixins, shader injections), read the jars first (`unzip` nested jars, `javap -v` the mixin targets in the
+  target jar of that exact version, grep the patched shader variables in its shaders): the mixin targets and the required
+  mods decide the risk, and a patch built for an older target version is a risk. A failed required injection logs
+  `Critical injection failure ... Scanned 0 target(s)` (on a mod thread only in the launcher console, see Working loop
+  step 4), the target class never loads and NPEs appear far from the cause; pin the last target version that passes.
+  Alpha builds: never claim it works with the pack until the log shows it. Example, Space Journey 2026-10-14: Chunks Fade
+  In 3.0.26, built against DH 3.2.0b, broke on DH 3.3.3 (`GL33.glClearDepth` became `LWJGL.glClearDepth`) and broke DH
+  3.3.2's SSAO shader (`TexCoord` vs `texCoord`; config fix in `neoforge-mod-configs`).
 
 ## Passport
 Created: 2026-10-12 (v34 second pass) from the DeceasedCraft port (journal: the project's `_port/HANDOFF.md`; method-only rework of
-the v33 text). Verified: facts above on MC 1.21.1 / NeoForge 21.1.250 in Oct 2026 in that port; the reworked text itself has not
-been run by a clean-context agent. Limits: scripts named in the Toolchain are not shipped; the converter rules are specific to
+the v33 text). Verified: facts above on MC 1.21.1 / NeoForge 21.1.250 in Oct 2026 in that port; the passages marked "Space
+Journey" in that project, 2026-10-14..23; the reworked text itself has not been run by a clean-context agent. Tested 2026-10-25 (skill-forge step 5, Opus executors, Sonnet
+judges): only the S-13 passage (updating a mod that other mods patch), one task (JEI 19.44 -> 19.64 with Swift Copy and Polymorph),
+previous text : this text 6:8 and 6:8, this text better; S-15 (launcher console) and S-38 (duplicate modId) were not tested. Limits:
+scripts named in the Toolchain are not shipped; the converter rules are specific to
 packs built on DCTweaks-style data, Lost Cities and FTB Quests.

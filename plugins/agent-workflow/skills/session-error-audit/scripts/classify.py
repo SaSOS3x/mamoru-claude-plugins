@@ -45,7 +45,8 @@ for _s in (sys.stdout, sys.stderr):
 SOFT = re.compile(r"(?m)^\s*(Traceback \(most recent|[^\n]*: No such file or directory|ls: cannot access|"
                   r"[^\n]*command not found|Error: class not found|cp: cannot stat|caution: filename not matched|"
                   r"unzip:\s+cannot find|[^\n]*Permission denied|[^\n]*SyntaxError:|[^\n]*unexpected EOF|"
-                  r"[^\n]*UnicodeEncodeError|[^\n]*UnicodeDecodeError|ModuleNotFoundError)")
+                  r"[^\n]*UnicodeEncodeError|[^\n]*UnicodeDecodeError|ModuleNotFoundError|"
+                  r"\S*bash: line \d+: warning: here-document at line \d+ delimited by end-of-file)")
 
 # soft rows only (exit code 0): the text is a quotation, not a failure of this command
 AUDIT_CMD = re.compile(r"scan_fail\.py|classify\.py|compare\.py|show\.py|rows\.json|final\.json|summary\.json")
@@ -141,6 +142,9 @@ def classify(r, extra):
     # bash / python messages
     if re.search(r"unexpected EOF while looking for matching", t):
         return "bash: heredoc / quote breakage (unexpected EOF)"
+    if re.search(r"(?m)^\s*\S*bash: line \d+: warning: here-document at line \d+ delimited by end-of-file", t):
+        # exit code 0: the head of a long command ran, the tail was cut off (a quoted message does not start the line)
+        return "bash: long command cut (heredoc delimited by end-of-file)"
     if re.search(r"SyntaxError: (unterminated string|\(unicode error\))", t) or (re.search(r"SyntaxError", t) and "EOL" in t) \
             or "SyntaxError: unexpected character after line continuation" in t \
             or ("SyntaxWarning" in t and "invalid escape sequence" in t and strong):
@@ -185,6 +189,8 @@ def classify(r, extra):
         return "EXPECTED genuine negative test result (an offline check caught a real mismatch)"
     if re.search(r"caution: filename not matched|Exit code 11", t):
         return "EXPECTED unzip: member not in jar (probe)"
+    if tool == "PowerShell" and re.search(r"Compilation failed|:compile\w* FAILED|crash report has been saved", t):
+        return "java/gradle: compile failed or crash (PowerShell)"
     if tool == "PowerShell":
         return "EXPECTED PowerShell recursive search exit 1 (ErrorAction Silent)"
     m = re.match(r"\s*Exit code (\d+)", t)

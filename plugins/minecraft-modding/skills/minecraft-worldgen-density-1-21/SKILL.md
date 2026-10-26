@@ -7,6 +7,8 @@ description: "Change or measure Minecraft 1.21.1 terrain (NeoForge): wrap densit
 
 Use for: flatter / hillier land, fewer mountains, more of one biome, "cities do not fit the terrain", reading `noise_settings`.
 Verified 2026-10-06 on 1.21.1 / NeoForge 21.1.250 / TerraBlender 4.1.0.8 / BOP 21.1.0.14 / Lost Cities 8.4.4. Re-check version numbers on another build.
+Tested 2026-10-25 (skill-forge step 5, Opus executors, Sonnet judges): only the S-37 passage (checking the noise map against real chunks), one task,
+previous text : this text 4:9 and 3:9, this text better; `references/router-java.md` (S-36) was not tested.
 Reference implementation (example, it exists only on the author's PC): the DeceasedCraft port keeps its tools in `game/_port/tools/terrain/`
 (`terrain_gen.py`, `build_terrain.py`, `harness/run.sh`) and its design and measured results in `_port/reports/terrain.md`. Outside the port write
 equivalents from the steps below; do not assume those paths exist.
@@ -38,6 +40,8 @@ Platform (checked on the author's Windows 11 PC, 2026-10-12): Git Bash for `.sh`
 4. Existing chunks never change: **new world** (an old/new border has cliffs). A JSON error = "Failed to load registries" at world load: test with the offline harness below.
 - `overworld_large_biomes/*` and `amplified` use their own functions; the default world type uses `overworld/*`.
 - Example, the DeceasedCraft port's measured result of this recipe (erosion + offset + jaggedness wrappers, 2 seeds): in `_port/reports/terrain.md`.
+- Rewriting the router in Java (noise coordinates remapped for a custom world geometry, a `NoiseBasedChunkGenerator`
+  subclass): read `references/router-java.md` first.
 
 ## Measure offline (no Minecraft needed; any machine with JDK 21)
 - Classpath from the instance `libraries/`: `client-1.21.1-*-srg.jar` (official names, no assets), datafixerupper, guava, failureaccess, brigadier, gson, slf4j-api, logging, fastutil, commons-lang3, joml, netty-*, authlib, icu4j, oshi-core, log4j-api/core/slf4j2-impl (the binding: otherwise registry errors are swallowed by the NOP logger and you only see an empty "Exception in thread main").
@@ -47,6 +51,14 @@ Platform (checked on the author's Windows 11 PC, 2026-10-12): Git Bash for `.sh`
   `RegistryDataLoader.load(rm, RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY), [NOISE, DENSITY_FUNCTION, NOISE_SETTINGS filtered from RegistryDataLoader.WORLDGEN_REGISTRIES])`,
   `RandomState.create(settings.value(), access.lookupOrThrow(Registries.NOISE), seed)`, `new NoiseBasedChunkGenerator(anonymous BiomeSource, settings).getBaseHeight(x, z, Heightmap.Types.OCEAN_FLOOR_WG, levelHeightAccessor(384, minY -64), rs)`; `rs.sampler().sample(qx, qy, qz)` gives the climate target point.
 - Speed (measured on a 2-core cloud machine): ~13 ms per getBaseHeight, so 4 corners x 4000 chunks ~ 1 min. Compare variants on the same seeds (2+), report: share of land chunks with a corner above the city limit, share fully inside the window, height percentiles, erosion index shares.
+- Against real chunks of a generated world: compare with the `MOTION_BLOCKING_NO_LEAVES` heightmap. `WORLD_SURFACE` counts
+  leaves and grass, and frozen-sea ice is not land: they gave false 47 % and 81 % in a first check. Later stages (trees,
+  icebergs, ice, canyons) are not in the noise, so a good match is exact height about 90-97 %, water 98-100 %, biome 100 %
+  (Space Journey's own generators, 4 worlds, 2026-10-15..19). Sample 16 columns in each of about 25 chunks, not 400 separate
+  chunks: every far chunk generates its whole neighbourhood (400 did not finish in 10 min).
+- Speed in the game (desktop PC, one thread, 2026-10-19, an Exotic Worlds world): getBaseHeight(OCEAN_FLOOR_WG) 4.4 ms per
+  column, a biome alone (`ServerLevel.getUncachedNoiseBiome`) 0.02 ms: for a detailed map take dense biomes over sparse
+  interpolated heights.
 - TerraBlender classes use an access widener at runtime (`OverworldBiomeBuilder.addBiomes` protected): outside the game patch the class with ASM (make it public) and put it first on the classpath.
 
 ## TerraBlender regions (more of a biome)

@@ -2,7 +2,7 @@
 
 [Русская версия](README.ru.md)
 
-A Claude Code plugin marketplace named `mamoru-plugins`. It holds three plugins and fifteen skills. The skills grew out of real work: porting the DeceasedCraft zombie modpack to Minecraft 1.21.1 NeoForge, large batch scripts for Windows, long projects with subagents and product searches on marketplaces. So what they record has been checked in practice. Every skill has a passport with the date and environment of its check, and whatever could not be verified is marked right in the text.
+A Claude Code plugin marketplace named `mamoru-plugins`. It holds three plugins and seventeen skills. The skills grew out of real work: porting the DeceasedCraft zombie modpack to Minecraft 1.21.1 NeoForge, the Space Journey mod, large batch scripts for Windows, long projects with subagents and product searches on marketplaces. So what they record has been checked in practice. Every skill has a passport with the date and environment of its check, and whatever could not be verified is marked right in the text.
 
 ## Installation
 
@@ -33,6 +33,7 @@ Inside `SKILL.md` you almost always find the same parts. First comes the order o
 | | skill-forge | turning verified experience into a new skill |
 | | windows-shell-claude-code (beta) | Git Bash, Python and JDK traps on Windows |
 | | browse-like-user | looking up prices and delivery on websites like a regular visitor, without captchas |
+| | test-mutations | proving that a check catches what it promises: an armed run and mutations |
 | minecraft-modding | kubejs-neoforge-2101 | KubeJS scripts for 1.21.1 |
 | | neoforge-mod-configs | mod configs: which file, when it is read, why it did not apply |
 | | modpack-port-neoforge | porting a pack from 1.20.1 Forge -> 1.21.1 NeoForge with converters |
@@ -40,12 +41,13 @@ Inside `SKILL.md` you almost always find the same parts. First comes the order o
 | | lostcities-biome-zones-mixin | biome zones placed by a rule and a city-free strip at their border |
 | | minecraft-worldgen-density-1-21 | terrain: density functions, TerraBlender, measuring without starting the game |
 | | tps-optimization-neoforge | finding and fixing lag |
+| | neoforge-dev-experiments | autotests and experiments of your own mod in Gradle dev runs |
 | writing-and-scripts | readable-docs | text rules for documents that people read, and the default layout of a student report in docx |
 | | windows-shell-dev | large `.bat` and `.cmd` files with embedded PowerShell |
 
 ## The agent-workflow plugin
 
-This plugin is about how Claude Code handles long work and learns from it. Four skills form one loop. project-journal keeps the tasks and the project journal, and agent-delegation hands parts of the work to subagents. Once per stage, session-error-audit shows which errors repeated, and skill-forge turns a verified fix into a skill so the error does not happen again. The fifth skill, windows-shell-claude-code, stands apart: it collects the Windows environment traps that came up in that same audit. The sixth skill, browse-like-user, also stands apart: it is about how the agent looks up data on other people's websites through a browser.
+This plugin is about how Claude Code handles long work and learns from it. Four skills form one loop. project-journal keeps the tasks and the project journal, and agent-delegation hands parts of the work to subagents. Once per stage, session-error-audit shows which errors repeated, and skill-forge turns a verified fix into a skill so the error does not happen again. The fifth skill, windows-shell-claude-code, stands apart: it collects the Windows environment traps that came up in that same audit. The sixth skill, browse-like-user, also stands apart: it is about how the agent looks up data on other people's websites through a browser. The seventh skill, test-mutations, belongs to the loop again: before a check counts as green, it shows that the check can turn red.
 
 ### project-journal
 
@@ -109,9 +111,17 @@ The skill grew out of a search for a bed on Wildberries, Ozon, Yandex Market and
 
 The skill was checked on two new tasks with and without it, and blind judges scored the answers. With the skill, the answer about a kettle on WB scored 12 against 7: the run without it used the site's "rating 4.7+" filter instead of the requested 4.5+ and missed cheaper options. For a robot vacuum on Ozon and Yandex Market the score was 11 to 10. No run hit a captcha, so the tests did not confirm the protection side. The skill slows work down: the tests made 2-6 times more tool calls.
 
+### test-mutations
+
+Triggers when a new autotest or scripted check is written or extended, before a check is reported green, and on "тест всегда зелёный" (the test is always green), "докажи тест" (prove the test), "мутации" (mutations) or "проверка слепая" (the check is blind).
+
+A check that cannot fail is worse than no check: it gives confidence without ground. The skill grew out of the Space Journey mod, where blind checks turned up more than ten times, usually found only by reviews that cost millions of tokens. A seam check compared a chunk with itself, and "0 moved wrongly" meant nothing because vanilla does not check that in creative mode. The method has two parts. First the new check is armed: it runs on the old code or on a deliberately broken copy, and exactly its line must turn red. Then comes a mutation series: one change in the checked file per mutation, the line that must turn red named beforehand, a baseline on the same arguments, only new red counts, and the source is restored even after an interrupted run. The skill lists the signs of a blind check and what to do with a mutation that stays green: the mechanism may be duplicated, so that a second line of defence closes the hole, or the check may look at a consequence that comes later.
+
+It was tested on the repeat of its original task, which passed at the first attempt, and on two new tasks with and without it: with the skill 9 against 7 and 9 against 8, from two blind judges each.
+
 ## The minecraft-modding plugin
 
-Seven skills for Minecraft 1.21.1 NeoForge modpacks. They all use one worked example: the DeceasedCraft port from 1.20.1 Forge. Still, the skills keep the method apart from the project's state: passages with port examples are labelled, and paths and work status live in the project's own journal. The port's scripts that the skills mention are not part of the plugin, so for another pack you write them again from the step descriptions. Mod facts carry version numbers and are worth re-checking after a mod update. The skills point to each other: the port skill sends you to kubejs-neoforge-2101 for the script API, to neoforge-mod-configs for configs and to lostcities-biome-zones-mixin for city borders.
+Eight skills for Minecraft 1.21.1 NeoForge modpacks and mods. Seven of them use one worked example, the DeceasedCraft port from 1.20.1 Forge, and neoforge-dev-experiments grew out of the Space Journey mod. Still, the skills keep the method apart from the project's state: passages with port examples are labelled, and paths and work status live in the project's own journal. The port's scripts that the skills mention are not part of the plugin, so for another pack you write them again from the step descriptions. Mod facts carry version numbers and are worth re-checking after a mod update. The skills point to each other: the port skill sends you to kubejs-neoforge-2101 for the script API, to neoforge-mod-configs for configs and to lostcities-biome-zones-mixin for city borders.
 
 ### kubejs-neoforge-2101
 
@@ -172,6 +182,14 @@ Triggers on "lag", "TPS dropped", "freezes", "FPS dropped", "it lags during a ho
 The rule of the skill: measure first, change one thing, measure again. Reading code only gives candidates, and the profile decides. For measuring, the skill describes spark commands for server and client, catching individual long ticks, and reading a profile as data through the JSON of the spark viewer. Entities are counted with `/neoforge entity list`, and each `Can't keep up` line in the log is matched with what happened a few seconds before it.
 
 Next come the usual causes in the order they are checked: from error spam in the log and performance mods lost in a port to mass spawns, pathfinding and chunk generation. For KubeJS it collects hot-path rules: throttling tick handlers, targeted event handlers per entity type, calling `Java.loadClass` once and never scanning blocks in JS every tick. There are also Rhino 2101.2.8 traps, for example a `const` inside `try` that fails on every call. For Java mods there are rules for mixins on hot paths and problems in specific mods found in their bytecode. At the end it collects config levers (In Control, Enhanced AI, Lost Souls, The Hordes) and a checked list of performance mods for 1.21.1, along with what not to install. The result goes into a report: MSPT, TPS and FPS before and after.
+
+### neoforge-dev-experiments
+
+Triggers on "dev-клиент из Gradle" (a dev client from Gradle), "автотест" (autotest), "тур" (a scripted tour), "runClient", "прогон висит" (the run hangs), "чёрный экран после выхода" (a black screen after leaving the world) or "dev-сервер не закрылся" (the dev server did not close).
+
+It covers automated experiments and autotests of your own mod in NeoForge 1.21.1 dev runs from ModDevGradle: a run configuration and a folder per experiment, the folder settings before the first launch (options.txt without the accessibility screen and sound, fml.toml, server.properties), a world created from code, a scripted tour that ends by itself with a RESULT PASS or FAIL line, a limit on every wait, an exit watchdog, leftover JVMs and honest timing numbers. A reference file collects the vanilla 1.21.1 server and client facts that make such checks lie: a teleport from the player's tick is rolled back, "moved wrongly" is not checked in creative mode, the client gets fewer heightmaps than the server. Facts that belong to other skills stay there and are linked: the stop-time hang and the watchdog in tps-optimization-neoforge, Distant Horizons in neoforge-mod-configs, comparing terrain with real chunks in minecraft-worldgen-density-1-21.
+
+The skill grew out of the Space Journey mod, which has 14 run folders and a tour for every stage. The repeat of its original task passed fully after section 7 got two concrete commands (how to see the exit code and how to find leftover java processes). On two new tasks the score with the skill was 8 against 5-6 and 9 against 3.
 
 ## The writing-and-scripts plugin
 

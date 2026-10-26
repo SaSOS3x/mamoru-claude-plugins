@@ -1,6 +1,6 @@
 {
   "name": "minecraft-modding",
-  "description": "Minecraft 1.21.1 NeoForge modpack work: KubeJS 2101 scripts, mod configs, porting a pack from 1.20.1 / 1.18.2, Lost Cities biome zones, worldgen density, TPS / FPS optimization. Worked example: the DeceasedCraft port.",
+  "description": "Minecraft 1.21.1 NeoForge modpack work: KubeJS 2101 scripts, mod configs, porting a pack from 1.20.1 / 1.18.2, Lost Cities biome zones, worldgen density, TPS / FPS optimization, autotests of your own mod in Gradle dev runs. Worked examples: the DeceasedCraft port and the Space Journey mod.",
   "author": {
     "name": "Mamoru"
   }

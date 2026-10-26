@@ -1,6 +1,6 @@
 ---
 name: "neoforge-mod-configs"
-description: "Change and debug mod configs on Minecraft 1.21.1 NeoForge: COMMON/CLIENT/SERVER/STARTUP *.toml files, where each is read and when, defaultconfigs seeding, ModConfigSpec value types, setting options from KubeJS, the file watcher, plus verified facts for Lost Cities profiles, Lost Souls, The Hordes, Biomes O' Plenty and TerraBlender. Use when the user edits or ships configs, or a setting/profile/defaultconfigs is ignored. User phrases: \"конфиги не встали\", \"профиль не применился\", \"настройка не работает\", \"конфиг сбрасывается\", \"изменил toml, ничего не поменялось\", \"defaultconfigs не работает\", \"config did not apply\"."
+description: "Change and debug mod configs on Minecraft 1.21.1 NeoForge: COMMON/CLIENT/SERVER/STARTUP *.toml files, where each is read and when, defaultconfigs seeding, ModConfigSpec value types, setting options from KubeJS, the file watcher, plus verified facts for Lost Cities profiles, Lost Souls, The Hordes, Biomes O' Plenty, TerraBlender and Distant Horizons. Use when the user edits or ships configs, or a setting/profile/defaultconfigs is ignored. User phrases: \"конфиги не встали\", \"профиль не применился\", \"настройка не работает\", \"конфиг сбрасывается\", \"изменил toml, ничего не поменялось\", \"defaultconfigs не работает\", \"config did not apply\"."
 ---
 
 # NeoForge 1.21.1 mod configs
@@ -120,6 +120,20 @@ description):
   `"data_version": -1` or the mod regenerates it. `hordes:player_day` = `day > value`; day 0 → default table.
 - `hordeEventByPlayerTime = true` counts player time (`/time` does not move it). `/hordes start <player> <ticks>`.
 
+**Distant Horizons 3.3.2** (`config/DistantHorizons.toml`, client; checked in Space Journey 2026-10-14..23 against the jar and
+the game's logs; re-check on other versions)
+- DH does not watch the file (no file watcher in its config code): edit it with the game closed. In-game toggles reach the
+  file incompletely ('rendering off' was written as `rendererMode = "DISABLED"` under `[client.advanced.debugging]`,
+  'distant generation off' not at all): copy the file before an experiment and restore it after.
+- LODs are built in every dimension. In a flat / void custom dimension DH's rough surface generator fills every empty column
+  with water from `min_y` up to the flat generator's sea level (-63): dark blue slabs in an empty sky (Space Journey: a space
+  dimension with `min_y` -2032). List such dimensions in `[client.advanced.graphics.experimental] ignoredDimensionCsv`
+  (comma-separated ids): it stops rendering and chunk intake there, NOT LOD generation (about 10 MB of LODs were still written
+  in one test flight), and forces vanilla fog there. Check: the log line `DH set to ignore dimensions: [...]`.
+- With Chunks Fade In 3.0.26 keep `[client.advanced.graphics] enableSsao = false`: CFI injects `TexCoord` into DH's SSAO
+  shader, DH 3.3.2 names it `texCoord` (log: `error C1503: undefined variable TexCoord`; DH disables its renderer and prints
+  the shader into chat). With the setting off: no C1503 in the 6 later launches with DH shaders loaded.
+
 **Biomes O' Plenty / TerraBlender**: `config/biomesoplenty/biome_toggles.json` (`<biome>_enabled`) - new worlds only.
 TerraBlender injects BOP regions into any overworld `multi_noise` source, also a datapack-defined one.
 
@@ -127,7 +141,10 @@ TerraBlender injects BOP regions into any overworld `multi_noise` source, also a
 Created: 2026-10 from the DeceasedCraft 1.21.1 port (configs of ~40 mods, defaultconfigs seeding, Lost Cities / Lost Souls /
 Hordes tuning).
 Checked: Oct 2026 against FancyModLoader 4.0.44, NeoForge 21.1 and the sources / bytecode of the mod versions named in each
-block; the Lost Cities profile order re-checked 2026-10-12 on lostcities-1.21-8.4.4.
+block; the Lost Cities profile order re-checked 2026-10-12 on lostcities-1.21-8.4.4; the Distant Horizons block 2026-10-23
+(DH 3.3.2 jar and the logs of the Space Journey test game). Tested 2026-10-25 (skill-forge step 5, Opus executors, Sonnet
+judges): one task (DH draws dark blue slabs in an empty dimension, game running), previous text : this text 6:9 and 7:10 by two blind
+judges, this text better; the other blocks were not run by a test executor.
 Limits: NeoForge 21.1 / Minecraft 1.21.1 only (older Forge keeps SERVER configs per world; Forge-era `serverconfig` rules
 differ). The per-mod blocks are valid for the named versions only.
 History: CHANGELOG.md next to this file (what changed, when and why).
