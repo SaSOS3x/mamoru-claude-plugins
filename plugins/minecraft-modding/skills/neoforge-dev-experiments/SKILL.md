@@ -1,6 +1,6 @@
 ---
 name: "neoforge-dev-experiments"
-description: "Automated experiments and autotests of your own mod in NeoForge 1.21.1 dev runs from Gradle (ModDevGradle): a run config and folder per experiment, folder settings before the first launch (options.txt, fml.toml, server.properties), a world made from code, a scripted tour that ends by itself with RESULT PASS/FAIL, a limit on every wait, an exit watchdog, leftover JVMs, honest FPS and timing numbers, and the vanilla 1.21.1 server/client facts that make such checks lie (teleport rollback, no 'moved wrongly' in creative, chunk tickets, client hasChunk, light packets, frozen ticks). Use for 'dev-клиент из Gradle', 'dev-сервер', 'автотест', 'тур', 'опыт в игре', 'поэтапно с тестами', 'runClient', 'прогон висит', 'зависло окно', 'чёрный экран после выхода', 'dev-сервер не закрылся', 'замер в dev', 'Found unused register callbacks', 'Sodium не грузится в dev'. Not for the player's game folder, pack configs (neoforge-mod-configs) or lag hunting (tps-optimization-neoforge)."
+description: "Automated experiments and autotests of your own mod in NeoForge 1.21.1 dev runs from Gradle (ModDevGradle): a run config and folder per experiment, folder settings before the first launch (options.txt, fml.toml, server.properties), a world made from code, a scripted tour that ends by itself with RESULT PASS/FAIL, a limit on every wait, an exit watchdog, leftover JVMs, honest FPS and timing numbers, and the vanilla 1.21.1 server/client facts that make such checks lie (teleport rollback, no 'moved wrongly' in creative, chunk tickets, client hasChunk, light packets, frozen ticks). Use for 'dev-клиент из Gradle', 'dev-сервер', 'автотест', 'тур', 'опыт в игре', 'поэтапно с тестами', 'runClient', 'прогон висит', 'зависло окно', 'чёрный экран после выхода', 'dev-сервер не закрылся', 'замер в dev', 'Found unused register callbacks', 'Sodium не грузится в dev', 'автотест в папке игры'. Player's game folder: section 9 only. Not for pack configs (neoforge-mod-configs) or lag hunting (tps-optimization-neoforge)."
 ---
 
 # Automated experiments in NeoForge 1.21.1 dev runs
@@ -151,6 +151,37 @@ differ, unless the check is about it: the seed, peaceful, noon with `RULE_DAYLIG
 - Two sides of a live world (client and server, two snapshots) are compared at the same moment or in a world at rest: leaves
   and fluids tick in between (what stops them: `references/vanilla-facts.md`, "A world at rest").
 - Variants under the same load (a generated world, nothing heavy alongside): `tps-optimization-neoforge`, section 1.
+- MSPT does not see the waits between ticks: a flight over new terrain showed MSPT 5.9 ms and "Can't keep up! Running 39219ms".
+  Count the real TPS per window: (`server.getTickCount()` at the window end - at its start) / window seconds; it showed 7-8.
+- One run's FPS varies by tens of percent (two identical runs: 80 and 98 FPS at the warm-up); compare FPS over 2-3 runs. Holes
+  counted on screenshots and the real TPS were stable between runs (Sengoku Jidai World, 2026-10-27).
+- A spark profile changes the numbers it explains: with spark's Java sampler the server fell from 7-9 TPS to about 1, with
+  `--thread *` and with the server thread alone (Windows, 2026-10-27). Take numbers from runs without the profiler; a profile
+  that must reach the summary ends before the run does (a 120 s profile in a 100 s run never returned its link).
+
+## 9. An autotest in the player's game folder
+When the pack cannot run in dev (Fabric mods through Sinytra Connector, the user's patched jars), test the real launcher folder
+with the same state machine (sections 5-8). Checked in one project (Sengoku Jidai World, TLauncher, NeoForge 21.1.264,
+2026-10-27, 8 runs); example: repo `IAlexVoss/sengoku_jidai_world`, `bench/` (mod) and `tools/bench.ps1` (runner).
+- Launch without the launcher: take the game's command line once from the running process (`Win32_Process.CommandLine` of the
+  java process with `--launchTarget forgeclient`; TLauncher itself is a java process too), put the bench `-D` properties right
+  after the java executable and `--quickPlaySingleplayer <world folder>` at the end. TLauncher's natives stay in
+  `versions/<version>/natives`. Capture again after a NeoForge or launcher update; the line holds an access token: not in git.
+- The bench mod sits in `mods/` only for the run (copied before, removed in `finally`), so normal play stays clean; the mod also
+  does nothing without its `-D` property. Back up options.txt, set `soundCategory_master:0.0`, put the backup back after the run
+  (the user asked for silence; checked 0.0 during, the user's value after). The launcher opens a small window (925x530 there):
+  `GLFW.glfwMaximizeWindow(mc.getWindow().getWindow())` gives the same size every run; write it into the summary.
+- A fresh copy of a template world each run (the user's world without region/, entities/, poi/ and the Distant Horizons
+  database). Copies keep the template's level name, and the user, playing a manual check from the world list, opened the
+  original instead of the copy: let the runner open the folder by quick play.
+- The runner's commands go through the integrated server: while it lags, `time set` and `tp` land seconds late (a screenshot
+  10 s after `time set noon` was still night). Hold what the measurement depends on from the client every tick (the look
+  direction) or wait for the effect, not for a fixed time.
+- Chunky 1.4.23: "Task finished" goes to the server console only, not to the player's chat; `ChunkyAPI.startTask` returned
+  false with nothing in the log (cause not found). Working path: the commands `chunky center/shape/radius/start`, the end from
+  the API events `onGenerationProgress` / `onGenerationComplete` (registered by reflection, no compile dependency on Chunky).
+  The bench result matched a manual run: 6:35 against 6:41 for 16 641 chunks.
+- A fresh world measures generation and holes, not the render cost of Distant Horizons: it has few LODs yet (GPU 25-37%).
 
 ## Traps
 | Symptom | Cause | Fix |
@@ -165,8 +196,8 @@ differ, unless the check is about it: the seed, peaceful, noon with `RULE_DAYLIG
 | A finished pre-generation is not on disk | `getChunkFuture` off the main thread holds its ticket for 1 tick | `references/vanilla-facts.md`, "Chunks" |
 
 ## Boundaries
-- For dev runs of your own mod from Gradle. Not for the player's game folder (a launcher's instance), pack configs
-  (`neoforge-mod-configs`) or lag hunting (`tps-optimization-neoforge`).
+- For dev runs of your own mod from Gradle and, by section 9, for an autotest in the player's launcher folder. Not for pack
+  configs (`neoforge-mod-configs`) or lag hunting (`tps-optimization-neoforge`).
 - NeoForge GameTest (the template's `gameTestServer` run) was not tried; it runs on a server, so checks of what the client sees
   need a tour anyway.
 - One project on one Windows PC; the limits and the 2 % rate come from there. Fallback when a tour is too much for a one-off
@@ -181,5 +212,8 @@ Tested 2026-10-25 (skill-forge step 5; Opus executors, Sonnet judges; game and G
 original task passed on the first try after section 7 was extended (first run: partly, no way to see the exit code and the java
 processes); two new tasks, without the skill : with the skill 5:8 and 6:8 (portal transfer autotest), 3:9 and 3:9 (FPS measurement
 with Sodium), with the skill better on both.
-Limits: MC 1.21.1, NeoForge 21.1.250, ModDevGradle 2.0.148, Gradle 9.2.1; one project.
+Section 9 and the new points of section 8 added 2026-10-27 from the Sengoku Jidai World autotest (TLauncher, NeoForge 21.1.264,
+9 runs). Tested 2026-10-27 (step 5, previous text : new text, Sonnet executors, one blind Sonnet judge): one new task (autotest
+plan in a TLauncher folder), 11:15.
+Limits: MC 1.21.1, NeoForge 21.1.250-21.1.264, ModDevGradle 2.0.148, Gradle 9.2.1; two projects.
 History: CHANGELOG.md next to this file (what changed, when and why).

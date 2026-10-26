@@ -1,6 +1,6 @@
 ---
 name: "tps-optimization-neoforge"
-description: "Find and fix lag in a NeoForge 1.21.1 modpack, especially one with KubeJS 2101 scripts and many mobs (zombie / horde packs, Lost Cities, In Control, Enhanced AI): TPS drops, \"Can't keep up\", MSPT spikes, freezes, FPS drops with many mobs or hordes. Method: measure with spark (server and client), read logs/latest.log, then fix hot KubeJS scripts, Java mods and mixins, mod configs and the performance mod set. Use for \"лаги\", \"тпс упал\", \"фризы\", \"фпс просел\", \"тормозит в городе / на орде\", \"оптимизация\", \"разбери профиль\", \"спарк\", \"зависает при выходе\", a hang on Saving worlds, a spark link, or a log full of Can't keep up."
+description: "Find and fix lag in a NeoForge 1.21.1 modpack, especially one with KubeJS 2101 scripts and many mobs (zombie / horde packs, Lost Cities, In Control, Enhanced AI): TPS drops, \"Can't keep up\", MSPT spikes, freezes, FPS drops with many mobs or hordes. Method: measure with spark (server and client), read logs/latest.log, then fix hot KubeJS scripts, Java mods and mixins, mod configs and the performance mod set. Use for \"лаги\", \"тпс упал\", \"фризы\", \"фпс просел\", \"тормозит в городе / на орде\", \"оптимизация\", \"разбери профиль\", \"спарк\", \"зависает при выходе\", a hang on Saving worlds, a spark link, or a log full of Can't keep up. Also: the server stalls while a player flies into new chunks (low TPS with low MSPT), Distant Horizons LOD holes, \"сервер ждёт чанки\", \"дыры в лодах\"."
 ---
 
 # TPS / FPS optimization: KubeJS 2101 scripts + NeoForge 1.21.1 mods
@@ -24,15 +24,19 @@ versions. Passages marked "In the DeceasedCraft port" are examples of the method
     disabling scripts.
   - **Reading a profile as data** (reliable numbers instead of clicking the viewer). Raw profile: the protobuf at
     `https://spark-usercontent.lucko.me/<id>`. Fetching `https://spark.lucko.me/<id>` without a browser returns the viewer
-    page, not the data. Without own tools, open `https://spark.lucko.me/<id>?raw=1&full=true` in a browser - the viewer
+    page, not the data. Without the scripts below, open `https://spark.lucko.me/<id>?raw=1&full=true` in a browser - the viewer
     decodes the profile and shows JSON (plain `?raw=1` = metadata only); save it (Ctrl+S) or run JavaScript on the page.
     Shape: `threads[].children[]` is a FLAT node list (`className`, `methodName`, `times[]` per time window in ms,
     `childrenRefs[]` = indexes into the same list), `threads[].childrenRefs` = roots, `classSources` = class -> mod id
     (vanilla / Java classes missing), `timeWindowStatistics` = per-window TPS / MSPT / entities. inclusive = sum(times),
     self = inclusive - children; count a method once per stack (recursion / event re-entry); % of the thread's root total.
-    In the DeceasedCraft port these steps are scripts (not part of the plugin): `python _port/tools/perf/spark_fetch.py <id>`
-    downloads the protobuf and writes `_port/perf/profiles/<id>.json`, then `python _port/tools/perf/spark_summary.py <file>
-    --grep <regex>` prints top self / inclusive methods, per mod, callers of a method.
+    Scripts of this skill (Python stdlib only, each has `--help`; run them with `python -I -X utf8`: a profile is downloaded data):
+    `python -I -X utf8 "${CLAUDE_SKILL_DIR}/scripts/spark_fetch.py" <id|link|file.bin> [--out spark_profiles]` downloads the
+    protobuf (or decodes a saved .bin offline) and writes `<out>/<id>.json`, byte-identical to the viewer's raw page;
+    `spark_summary.py <json> --thread "Server thread" [--grep <regex>]` prints top self / inclusive methods, per mod, callers of
+    a method (pools are grouped as `c2me-worker (x5)`, a unique prefix works); `spark_chains.py <json> --thread <name> --match
+    <regex>` sums the time of the matching methods by the chain of their callers, mixin glue skipped (who holds the server thread
+    in `ServerChunkCache.getChunkBlocking`, who asks OpenGL state on the render thread).
   - `EventBus.post` with a big share is the SUM of all mod handlers of the events - split it by the frames below it.
   - A large SELF time in a tiny method = it is called in a loop by its parent (look at the callers), not slow itself.
 - **NeoForge**: `/neoforge tps` (per dimension), `/neoforge entity list` (counts per type - look for hundreds of
@@ -51,6 +55,18 @@ versions. Passages marked "In the DeceasedCraft port" are examples of the method
   TPS = 1000 / MSPT. A single long tick is found in the lines 0-3 s before its warning; sustained overload builds up over the
   whole interval since the previous warning, so look at everything between the two. Example (Space Journey, 2026-10-14):
   warnings with N = 30-37 s were first read as 1-2 TPS; the real rate from their timestamps was 5.7-7.3 TPS.
+- MSPT measures the tick, not the waits between ticks. When the main thread blocks outside the tick (tasks run in
+  `waitUntilNextTick`, a synchronous chunk wait), MSPT stays low while the server falls behind: a flight over new terrain showed
+  MSPT 5.9 ms and "Running 39219ms or 784 ticks behind" (Sengoku Jidai World, 2026-10-27). Count the real TPS (server ticks per
+  second of wall time) next to MSPT.
+- Main thread blocked on chunks: in the profile `ServerChunkCache.getChunkBlocking` -> `MainThreadExecutor.managedBlock`; follow
+  the callers. From `ServerGamePacketListenerImpl.handleMovePlayer` (`doCheckFallDamage` -> `getFluidState`): the player moves
+  faster than chunks generate and the server waits for the chunk under him (vanilla; 88% of the server thread in a 20 blocks/s
+  flight over a new world); levers are pre-generation and faster generation, not configs of the client. From a mod's tick
+  handler: section 4, `isLoaded`.
+- spark's Java sampler (the engine on Windows) slows the whole JVM: the server fell from 7-9 TPS to about 1 during a profile,
+  with `--thread *` and with the server thread alone (2026-10-27). Shares of time in such a profile still point at the cause;
+  absolute numbers come from runs without it.
 - Separate server lag from client FPS: `[Server thread]` / TPS vs `[Render thread]` / FPS (a GPU / render problem
   is not a TPS problem).
 - A hang is not lag: when a tick never ends (stuck on "Saving worlds", a black screen after leaving a world, the server stops
@@ -85,6 +101,17 @@ versions. Passages marked "In the DeceasedCraft port" are examples of the method
 7. Scripts and mixins on hot paths (below).
 8. Client FPS in a pack with Distant Horizons: its distant generation and its LOD rendering (Space Journey 2026-10-21, one PC,
    DH 3.3.2, LOD radius 256, F3 on one spot: 55 FPS as is, 109 without distant generation, 226 without DH rendering).
+   DH 3.3.3 render thread (Sengoku Jidai World, 2026-10-27, profile of a flight): `GLState.saveState` / `close` around every
+   post-processing pass (SSAO, fog, vanilla fade, TAA, copy) took about 40% of the render thread in glGet* / glIs* queries
+   (likely driver sync points where the CPU waits for the GPU - not measured; the profile only shows where the thread waits);
+   DH's `LightMapWrapper.uploadLightmap` asks the active texture with `glGetInteger` on every lightmap update (about 10% in a
+   second profile); config levers `enableSsao`, `enableAntiAliasing`, `vanillaFadeMode`. Polytone 5.2.1
+   `VoxelVolumeManager.bindTo` calls `glGetUniformLocation` on every `ShaderInstance.apply` (about 10%).
+   DH LOD holes near the edge of the generated world: DH 3.3.3 pauses its own generation (`ThreadPoolUtil.worldGenThreadsCanRun`,
+   bytecode) when `pauseIfMovingQuickly` and the camera averages more than 20 blocks/s, when the ChunkToLodBuilder queue holds
+   more than 1000 (in code), or when `limitIfServerUnhealthy` and the server is unhealthy. In a 20 blocks/s flight over a new
+   world switching off either config alone changed nothing (holes 93-100% before and after): the server waited for the chunk
+   under the player (section 1), so fix the server first.
 
 ## 3. KubeJS 2101 scripts
 - Tick handlers (`ServerEvents.tick`, `PlayerEvents.tick`, `LevelEvents.tick`) run 20x per second (x players).
@@ -130,6 +157,18 @@ versions. Passages marked "In the DeceasedCraft port" are examples of the method
 ## 4. Java mods and mixins
 - Mixins on hot paths (entity tick, `getEntities`, render, lighting): HEAD inject with a cheap early return, no
   allocation, no logging; cache per tick when the same answer is asked many times.
+- `Level.isLoaded(pos)` / `hasChunkAt` means "the chunk has a FULL ticket", not "the chunk is ready" (MC 1.21.1). A tick handler
+  that checks it and then calls `getBlockState` makes the server generate the chunk synchronously. Example: Sengoku Jidai 2.1.5
+  `WarmWaterSystem.meltIceNearMagma` (every 20 ticks, 6 random spots within 8 blocks of each player): 11% of the server thread in
+  a flight over generated land, 4% over a new world; with `warmWaterEnabled=false` the flight TPS rose from 7.5 to 9.6 (one run). The
+  non-blocking check is `level.getChunkSource().getChunkNow(x >> 4, z >> 4) != null`.
+- A world generation step that gets slower as the session goes on: a global registry walked for every noise sample. Sengoku
+  Jidai 2.1.5 `AdjustableBeardRegistry.computeContribution(x, y, z)` loops over all beard boxes ever added (added in the
+  `PoolElementStructurePiece` constructor, at generation and at every load from NBT; cleared only at server start): 16.4% of the
+  C2ME workers' own time during a 16 641-chunk Chunky run. Fix shape: an index by chunk, not a config.
+- Bytecode of a Fabric mod loaded through Sinytra Connector with Mojang names: Connector keeps the remapped jar in
+  `<game>/.cache/connector/<mod>_mapped_moj_1.21.1.jar` (javap there shows `ServerLevel.isLoaded` instead of
+  `class_3218.method_8477`).
 - Event listeners: right bus and side, filter first; `receiveCanceled = true` only when needed.
 - Diagnostics (StackWalker, exceptions for stack traces): once per source (`Set` of seen keys), never per call.
 - Block entities: no tick work while idle; invalid saved block entity data in structure palettes -> strip it in the
@@ -219,5 +258,10 @@ Read them before proposing a step, so as not to repeat one that is already done.
 В журнале нет записи о прогоне навыка целиком в чистом контексте по схеме skill-forge (шаг 5).
 Тест 2026-10-25 (шаг 5 skill-forge, исполнители Opus, судьи Sonnet): только правка S-14 (зависание при остановке), одна задача,
 прежний текст : новый 2:9 и 3:9, новый лучше (прежний обвинил билет мода); S-33, S-34 и S-35 не тестировались.
+Дополнено 2026-10-27 по проекту Sengoku Jidai World (NeoForge 21.1.264, C2ME, DH 3.3.3, Sengoku через Connector): TPS против MSPT,
+ожидание чанка под игроком, `isLoaded`, глобальный реестр, паузы и цена рендера DH. Тест шага 5 (прежний текст : новый, исполнители
+Sonnet, один слепой судья Sonnet): задача "полёт в новый мир, мод Frontier", 12:15.
+Скрипты spark в `scripts/` с 2026-10-27 (spark_fetch, spark_summary из порта DeceasedCraft, spark_chains из Sengoku Jidai World): тест
+шага 5 с двумя слепыми судьями, без скриптов : со скриптами 13:15 и 14:15 (точность та же, вдвое меньше вызовов и времени).
 Границы: сборки без KubeJS и без большого числа мобов покрыты только разделами 1, 2, 4, 6; версии модов перепроверять.
 История изменений: CHANGELOG.md в папке навыка (что, когда и почему).

@@ -1,6 +1,6 @@
 ---
 name: windows-shell-claude-code
-description: "Как агенту Claude Code на Windows не ломать команды: инструмент Bash (Git Bash) запускает родные Windows python.exe и JDK, и на стыке ломаются кавычки и heredoc, пути /c/ против C:/, кодировка cp1251, коды выхода, CRLF, имена модулей, JAVA_HOME на другом JDK, лимит 32 тыс. знаков (classpath для javap). Метод: проба окружения, скрипт в файл, пути C:/, проверка по тексту вывода. Для любого проекта на этом ПК. НЕ про написание .bat/.cmd (это windows-shell-dev). Use at the start of work in a new project, before the first python/java/javap command, and on UnicodeEncodeError, ModuleNotFoundError after python -I, 'Argument list too long', 'class not found', 'unzip extracted too few files', 'unexpected EOF', FileNotFoundError on /c/..., 'Remove-Item on system path is blocked', a decimal comma in CSV or PowerShell output, 'script contains control characters', or exit 0 with an error in the output. Фразы: 'команда упала в bash', 'кракозябры', 'javap не находит класс', 'не та версия Java'."
+description: "Как агенту Claude Code на Windows не ломать команды: инструмент Bash (Git Bash) запускает родные Windows python.exe и JDK, и на стыке ломаются кавычки и heredoc, пути /c/ против C:/, кодировка cp1251, коды выхода, CRLF, имена модулей, JAVA_HOME на другом JDK, лимит 32 тыс. знаков (classpath для javap). Метод: проба окружения, скрипт в файл, пути C:/, проверка по тексту вывода. Для любого проекта на этом ПК. НЕ про написание .bat/.cmd (это windows-shell-dev). Use at the start of work in a new project, before the first python/java/javap command, and on UnicodeEncodeError, ModuleNotFoundError after python -I, 'Argument list too long', 'class not found', 'unzip extracted too few files', 'unexpected EOF', FileNotFoundError on /c/..., 'Remove-Item on system path is blocked', a decimal comma in CSV or PowerShell output, 'script contains control characters', or exit 0 with an error in the output. Фразы: 'команда упала в bash', 'кракозябры', 'javap не находит класс', 'не та версия Java', 'robocopy /E'."
 ---
 
 # Оболочка Claude Code на Windows: Git Bash, python.exe, JDK
@@ -46,6 +46,9 @@ Git Bash переписывает часть аргументов, Windows не 
    путь Python отдельным аргументом `"$R"`.
    `/tmp` для Python это `C:\tmp`, а для Git Bash `%TEMP%`: два разных места, используй scratchpad.
    `glob('C:/x/*/')` возвращает `C:/x\dir\`: обрезай `rstrip('/\\')` перед `basename`.
+   Ключи Windows-программ вида `/X` Git Bash тоже принимает за пути: `/E` доходит как `E:/`, `/XD` и `/NFL` как
+   `C:/Program Files/Git/XD` и `.../NFL` (проверено 2026-10-27 на `python -c "import sys; print(sys.argv[1:])" /E /XD /NFL`).
+   robocopy, cmd, findstr, taskkill с такими ключами запускай из инструмента PowerShell или с `MSYS_NO_PATHCONV=1` перед командой.
 3. **Кодировка (23 сбоя).** Без настройки stdout это cp1251: `print('\u2192')` даёт UnicodeEncodeError.
    `PYTHONIOENCODING=utf-8` чинит только stdout/stderr. `open()` без `encoding=` остаётся cp1251 (проверено): UTF-8 файл
    читается МОЛЧА с мусором (`привет` стало `РїСЂРёРІРµС‚`), запись `→` падает. Всегда `encoding='utf-8'` в open/read_text/write_text.
@@ -66,6 +69,9 @@ Git Bash переписывает часть аргументов, Windows не 
    Проверено: `python нет.py | head` даёт 0 (`${PIPESTATUS[*]}` показывает `2 0`); `set -o pipefail` даёт 2.
    Делай: читай вывод на `Traceback|Error|Exception|No such file|not found|cannot|Argument list too long`,
    проверяй, что нужный файл создан и не пуст; в цепочках используй `&&`.
+   Обратный случай - robocopy: код 1 значит «скопировано», ошибка только от 8 и выше. Если robocopy последняя внешняя команда
+   скрипта PowerShell, его 1 становится кодом выхода всего скрипта: инструмент показал exit 1 при успешном прогоне (2026-10-27).
+   Проверяй `$LASTEXITCODE -ge 8` и в конце скрипта ставь явный `exit 0` / `exit 1` по настоящему признаку успеха.
 5. **`python3` это заглушка Microsoft Store** (печатает `Python`, код 49). Вызывай `python`. Скрипты с `python3` в шебанге
    запускай как `python script.py`.
 6. **CRLF.** `grep -c $'\r' file` печатает 0 на файле с CRLF (проверено: 3 строки CRLF, ответ 0). Считай по байтам:
@@ -111,10 +117,18 @@ Git Bash переписывает часть аргументов, Windows не 
     - curl сам, а не Git Bash, читает `[]` и `{}` в URL как шаблоны: `[..]` останавливает его (код 3, `bad range
       specification`, ничего не отправлено), а `{x}` молча заменяется на `x`, и запрос уходит по другому адресу (проверено
       2026-10-23, curl 8.22.0). Пиши `curl -g ...` или `curl -G --data-urlencode 'k=[...]'`.
+    - `nvidia-smi --query-gpu=... -l 1 -f файл` пишет в файл блоками по 4 КБ: при остановке процесса (`Stop-Process`) хвост
+      пропадает, последняя строка обрывается (2026-10-27: файл 4218 байт, строка оборвана на `2026/`). Для лога на всё время
+      прогона делай короткий запрос раз в секунду в фоновом задании PowerShell: `Start-Job { while ($true) { nvidia-smi
+      --query-gpu=timestamp,utilization.gpu,memory.used --format=csv,noheader,nounits | Add-Content файл; Start-Sleep 1 } }`,
+      в конце `Stop-Job`; строки пишутся сразу (проверено: 4 строки за 6 с).
 11. **Запятая в дробных числах (локаль ru-RU).** В PowerShell `'{0:F1}' -f 1.5` и `(1.5).ToString()` дают `1,5`, а
     `[string]1.5` и `(1.5).ToString([cultureinfo]::InvariantCulture)` дают `1.5` (проверено 2026-10-15). Java `String.format`
     без `Locale.ROOT` тоже ставит запятую: в проекте Space Journey CSV замера из-за этого разъехался по столбцам. Числа в файлы
-    пиши через `Locale.ROOT` в Java и InvariantCulture в PowerShell.
+    пиши через `Locale.ROOT` в Java и InvariantCulture в PowerShell. Та же культура портит разбор дат: в своём формате
+    `[datetime]::ParseExact(s, 'yyyy/MM/dd HH:mm:ss', $null)` знак `/` значит разделитель даты культуры (`.` в ru-RU), и строка
+    `2026/10/27 ...` (так пишет время nvidia-smi) не разберётся; третьим аргументом давай `[cultureinfo]::InvariantCulture`
+    (2026-10-27, найдено чтением до запуска, проверено отчётом на подставных данных).
 12. **Удаление в инструменте PowerShell.** Защита инструмента отклоняла `Remove-Item` в длинных командах из нескольких операторов
     ("Remove-Item on system path ... is blocked", 2 из 3 таких команд), а отдельные команды `Remove-Item -LiteralPath "<полный
     путь>" -Recurse -Force -Confirm:$false -ErrorAction Stop` с литеральным путём в двойных кавычках прошли 4 из 4 (2026-10-15, по
@@ -142,6 +156,14 @@ Git Bash переписывает часть аргументов, Windows не 
   инструменте: `Set-Content -Encoding utf8`, `Out-File` и `>` пишут UTF-8 с BOM и CRLF в конце (проверено 2026-10-23,
   PowerShell 5.1.26100: инструмент сам задаёт кодировку Out-File, а в простом powershell.exe `>` пишет UTF-16), так .java
   проекта получил BOM. Исходники и конфиги правь через Edit/Write, хотя описание инструмента советует `-Encoding utf8`.
+  Если файл надо переписать из скрипта PowerShell (конфиг игры без BOM и с CRLF, например options.txt), пиши через .NET:
+  `[System.IO.File]::WriteAllLines(путь, строки, (New-Object System.Text.UTF8Encoding($false)))` даёт CRLF без BOM (сверено
+  eol.py 2026-10-27), читай `[System.IO.File]::ReadAllLines(путь)` (UTF-8 по умолчанию; `Get-Content` в 5.1 без BOM читает ANSI).
+  Имена переменных PowerShell не различают регистр: в скрипте `$game = Start-Process ...` затирает `$Game` с путём к папке
+  (2026-10-27, поймано чтением до запуска). Не давай переменным имена, отличающиеся только регистром.
+  Свои локальные `.ps1` запускай без `-ExecutionPolicy Bypass`: классификатор авторежима Claude Code отклоняет его как
+  ослабление защиты ("Security Weaken", 2026-10-27), а при политике CurrentUser = RemoteSigned (`Get-ExecutionPolicy -List`)
+  локальный скрипт и так запускается: `& 'путь\скрипт.ps1'` в инструменте PowerShell или `powershell -NoProfile -File`.
   Ловушки про Git Bash (1, 2, 4 и счёт CR в 6) к нему не относятся, про Python и Java (3, 7-9 и запись CRLF в 6) остаются,
   11, 12 и запись файлов - про него самого (11 ещё и про Java).
 - Если в проекте есть своя обёртка (например javap с готовым classpath), используй её, а не `classpath_jar.py`.
@@ -163,5 +185,8 @@ Remove-Item и javap взяты из журналов сессии Space Journey
 2026-10-23 (pathspec git 2026-10-25), сравнения с навыком и без него не было.
 Тест 2026-10-25 (шаг 5, прежний текст против нового): задача T1 (классы levelgen, ссылающиеся на RandomState, поиск по jar), Opus 5.5 9:9 и 9:9,
 повтор на Sonnet 5.5 9:9 и 9:9; оба варианта обошли ловушку unzip через python, правку про unzip тест не различил.
+Дополнено 2026-10-27 по проекту Sengoku Jidai World: ключи `/X` в Git Bash, код robocopy, буфер nvidia-smi, даты ru-RU, запись без
+BOM, регистр имён и `-ExecutionPolicy Bypass` в PowerShell. Тест шага 5 (прежний текст : новый, исполнители Sonnet, один слепой судья
+Sonnet): задача "бенч-скрипт на Windows", 12:16; различили nvidia-smi и Bypass, остальное модель знает и без навыка.
 Границы: не для .bat/.cmd; пути JDK и PATH относятся к этому ПК, у других машин сначала `env_probe.py`
 История изменений: CHANGELOG.md в папке навыка (что, когда и почему; там же решения, которые не нужно отменять).
