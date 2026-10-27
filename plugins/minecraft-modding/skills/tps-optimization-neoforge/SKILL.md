@@ -1,6 +1,6 @@
 ---
 name: "tps-optimization-neoforge"
-description: "Find and fix lag in a NeoForge 1.21.1 modpack, especially one with KubeJS 2101 scripts and many mobs (zombie / horde packs, Lost Cities, In Control, Enhanced AI): TPS drops, \"Can't keep up\", MSPT spikes, freezes, FPS drops with many mobs or hordes. Method: measure with spark (server and client), read logs/latest.log, then fix hot KubeJS scripts, Java mods and mixins, mod configs and the performance mod set. Use for \"лаги\", \"тпс упал\", \"фризы\", \"фпс просел\", \"тормозит в городе / на орде\", \"оптимизация\", \"разбери профиль\", \"спарк\", \"зависает при выходе\", a hang on Saving worlds, a spark link, or a log full of Can't keep up. Also: the server stalls while a player flies into new chunks (low TPS with low MSPT), Distant Horizons LOD holes, \"сервер ждёт чанки\", \"дыры в лодах\"."
+description: "Find and fix lag in a NeoForge 1.21.1 modpack, especially one with KubeJS 2101 scripts and many mobs (zombie / horde packs, Lost Cities, In Control, Enhanced AI): TPS drops, \"Can't keep up\", MSPT spikes, freezes, FPS drops with many mobs or hordes. Method: measure with spark (server and client), read logs/latest.log, then fix hot KubeJS scripts, Java mods and mixins, mod configs and the performance mod set. Use for \"лаги\", \"тпс упал\", \"фризы\", \"фпс просел\", \"тормозит в городе / на орде\", \"оптимизация\", \"разбери профиль\", \"спарк\", \"зависает при выходе\", a hang on Saving worlds, a spark link, or a log full of Can't keep up. Also: the server stalls while a player flies into new chunks (low TPS with low MSPT), Distant Horizons LOD holes, \"сервер ждёт чанки\", \"дыры в лодах\", \"прогрузка зависла\", a Chunky pregeneration that stops."
 ---
 
 # TPS / FPS optimization: KubeJS 2101 scripts + NeoForge 1.21.1 mods
@@ -9,7 +9,9 @@ Rule: measure first, change one thing, measure again. Code reading only gives ca
 correlation decides. Related skills (same plugin, if installed): `kubejs-neoforge-2101` (script API), `neoforge-mod-configs`
 (configs), `modpack-port-neoforge` (porting a pack: folders, converters). Mod facts below carry version stamps; they were
 verified in the DeceasedCraft port and in Space Journey (NeoForge 21.1.x, October 2026) - re-check them against your
-versions. Passages marked "In the DeceasedCraft port" are examples of the method, not rules for every pack.
+versions. Passages marked "In the DeceasedCraft port" are examples of the method, not rules for every pack. Numbers in the
+examples are measurements of the named pack: quote them as an example, never as the gain, rate or frequency to expect in
+another pack - there its own profile sets the ceiling (section 1) and its own runs the frequency.
 
 ## 1. Measure
 - **spark** (NeoForge 1.21.1 build in `mods/`):
@@ -63,7 +65,7 @@ versions. Passages marked "In the DeceasedCraft port" are examples of the method
   the callers. From `ServerGamePacketListenerImpl.handleMovePlayer` (`doCheckFallDamage` -> `getFluidState`): the player moves
   faster than chunks generate and the server waits for the chunk under him (vanilla; 88% of the server thread in a 20 blocks/s
   flight over a new world); levers are pre-generation and faster generation, not configs of the client. From a mod's tick
-  handler: section 4, `isLoaded`.
+  handler: section 4, `isLoaded` and `getHeight`.
 - spark's Java sampler (the engine on Windows) slows the whole JVM: the server fell from 7-9 TPS to about 1 during a profile,
   with `--thread *` and with the server thread alone (2026-10-27). Shares of time in such a profile still point at the cause;
   absolute numbers come from runs without it.
@@ -73,7 +75,8 @@ versions. Passages marked "In the DeceasedCraft port" are examples of the method
   answering) read thread stacks, not a profile. Take the `Server thread` stack 2-3 times 5 s apart (`jcmd <pid> Thread.print`
   of a JDK, or a watchdog thread in your own mod: `Thread.getAllStackTraces()` after a time limit, and in an unattended test
   run then `Runtime.getRuntime().halt(3)` so it ends); the frames that repeat in every dump are the loop (Space Journey
-  2026-10-16: a watchdog with three dumps found the case in section 4).
+  2026-10-16: a watchdog with three dumps found the case in section 4). The same stack in every dump in `getChunkBlocking` ->
+  `managedBlock` while the chunk workers (C2ME) idle is a chunk wait that never ends: section 4, `getHeight`.
 - Compare variants under the same load: an already generated world (a new world generates chunks and LODs in the background
   for minutes) and nothing else heavy on the PC (builds, other agents' runs; Space Journey 2026-10-16: the same computation took
   147.9 s alone and 200.1 s next to review agents). Client FPS: the same spot, one factor off at a time, several F3 readings per
@@ -172,17 +175,43 @@ versions. Passages marked "In the DeceasedCraft port" are examples of the method
   `level.getChunkSource().getChunkNow(x >> 4, z >> 4) != null`; a mixin with it (`@WrapOperation` on that `isLoaded` and on
   `getBlockState` in `isNearMagmaBlock`) removed the chain from the profile, and the flight TPS stayed within the baseline
   spread (section 1: a 4% ceiling).
+- `Level.getHeight(type, x, z)` has the same trap: it checks only `hasChunk` - the chunk has a FULL ticket and may still be
+  generating - and then `getChunk` waits for it (a chunk without a ticket gets `getMinBuildHeight()` at once, no wait). That
+  wait can also never end: Sengoku Jidai 2.1.5 `IkuchiSpawner.findOceanSpawn` (every 2400 ticks, up to 40 random spots
+  32-96 blocks from a player) hung the server thread for 14 minutes during a Chunky run - the same stack in 22 watchdog dumps,
+  the C2ME workers and the Chunky thread idle (C2ME 0.4.0-alpha.0.123, not in every run; why the chunk never came is not
+  known). Same fix: `getChunkNow` first. For a chunk that is not ready skip the spot; Ikuchi's mixin answers
+  `level.getMinBuildHeight()` (what `getHeight` returns for a chunk without a ticket) because the caller then reads the fluid
+  at that height - 1, below the world, where nothing loads. If the caller reads at the height itself (inside the world), that
+  read waits for the chunk again: skip the spot instead or guard that read too. A hang that does not come in every run is
+  shown gone only by several clean runs after the fix, not by one (2026-10-27).
 - A world generation step that gets slower as the session goes on: a global registry walked for every noise sample. Sengoku
   Jidai 2.1.5 `AdjustableBeardRegistry.computeContribution(x, y, z)` loops over all beard boxes ever added (added in the
   `PoolElementStructurePiece` constructor, at generation and at every load from NBT; cleared only at server start): 16.4% of the
-  C2ME workers' own time during a 16 641-chunk Chunky run. Fix shape: an index by chunk, not a config.
+  C2ME workers' own time during a 16 641-chunk Chunky run. There is no config; the fix that kept the terrain the same: walk only
+  the boxes that can reach the sample's chunk column. `AdjustableBeardBox.computeContribution` returns exactly 0.0 when the
+  point is `radius` or more blocks from the box on X or Z, so the boxes left out add nothing, and kept in the registry's order
+  the floating-point sum is the same bit for bit. A `@ModifyExpressionValue` on the `ACTIVE_BEARDS` read hands the loop a
+  per-thread cached array for the column (rebuilt when the column or the registry array changes; nothing allocated per sample).
+  No lock is needed only because Sengoku's `add` replaces the volatile array with a longer copy (copy-on-write): a thread's
+  snapshot never changes under it. A registry that appends in place needs that first (a copy-on-write array or a lock in `add`),
+  or the cache can miss a box. The cache rescans the whole registry once per column and thread - cheap for the beard boxes of
+  that run; for a much larger registry index the boxes by chunk in `add` instead (each chunk keeps the boxes that reach it, in
+  registry order). The registry left the top of the workers' profile, and the Chunky run gained about as much as its share had
+  been (section 1). Prove the equality offline first: the real classes, random boxes and points on the noise grid, compare
+  `Double.doubleToRawLongBits`, and a filter made wrong on purpose must fail (one block short of `radius` is still exact here -
+  zero starts at `radius`; two blocks short is caught). The cost grows with the registry, so the gain grows with the run:
+  compare runs of the same length.
 - Bytecode of a Fabric mod loaded through Sinytra Connector with Mojang names: Connector keeps the remapped jar in
   `<game>/.cache/connector/<mod>_mapped_moj_1.21.1.jar` (javap there shows `ServerLevel.isLoaded` instead of
   `class_3218.method_8477`). Mixins of a NeoForge mod apply to such a mod (Connector 2.0.0-beta.17, 2026-10-27: it sits in the
   TRANSFORMER layer, `sengoku@2.1.5` in stack traces; a log line from the mixin handler proved it). No Fabric jar on the compile
   classpath is needed when the handlers use only Minecraft types: `@Mixin(targets = "<class>")` plus MixinExtras
   `@WrapOperation` (bundled with NeoForge 21.1); depend on the Fabric mod's id with the exact version in `neoforge.mods.toml`
-  (the mixin was written against that bytecode).
+  (the mixin was written against that bytecode). When a handler needs the mod's own types (its fields, a class of it as a
+  parameter), compile against the remapped jar: `compileOnly files("<game>/.cache/connector/<mod>_mapped_moj_1.21.1.jar")`;
+  the mod and yours share the game layer, so a helper class in your own package may use those types too (Sengoku 2.1.5,
+  2026-10-27).
 - Event listeners: right bus and side, filter first; `receiveCanceled = true` only when needed.
 - Diagnostics (StackWalker, exceptions for stack traces): once per source (`Set` of seen keys), never per call.
 - Block entities: no tick work while idle; invalid saved block entity data in structure palettes -> strip it in the
@@ -280,5 +309,11 @@ Sonnet, один слепой судья Sonnet): задача "полёт в н
 Правка 2026-10-27 (доля в профиле как потолок прибавки, тёплая вода без числа одного прогона, миксины в моды Connector): новая задача
 "Chunky, мод Hearthfire" прежний : новый 11:14 и 11:14 (два слепых судьи Sonnet); повтор задачи Frontier против прежнего ответа
 15:15 и 14:15 (не хуже). Открыто: числа проекта из примеров навыка уходят в ответы как ожидание (у всех вариантов).
+Правка 2026-10-27, веха T18 (`getHeight` и ожидание чанка без конца, правка бороды с ценой кэша и условием copy-on-write,
+`compileOnly` на jar Connector, оговорка о числах примеров): тест шага 5, исполнители и судьи Sonnet, по два слепых судьи,
+прежний : новый - новые задачи Tidewatch 11:13 и 12:14 (на v5), Stonewright 13:16 и 14:16; повтор Ironwood 12:16 и 12:16,
+Frontier 14:16 и 15:16. Три круга правки: первый вариант проиграл Frontier на балл (кэш без условия copy-on-write),
+исполнители путали, какой чанк ждёт `getHeight`, и переносили приём с низом мира туда, где он не годится. Числа примеров
+попадают в ответы реже, но попадают.
 Границы: сборки без KubeJS и без большого числа мобов покрыты только разделами 1, 2, 4, 6; версии модов перепроверять.
 История изменений: CHANGELOG.md в папке навыка (что, когда и почему).

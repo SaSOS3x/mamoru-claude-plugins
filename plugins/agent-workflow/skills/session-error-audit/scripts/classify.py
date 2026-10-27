@@ -49,6 +49,10 @@ SOFT = re.compile(r"(?m)^\s*(Traceback \(most recent|[^\n]*: No such file or dir
                   r"\S*bash: line \d+: warning: here-document at line \d+ delimited by end-of-file)")
 
 # soft rows only (exit code 0): the text is a quotation, not a failure of this command
+# a Java exception in the output counts only when the command itself ran java / javac / gradlew; otherwise it is a quote
+# of a log (Minecraft logs are full of "Caused by:")
+JAVA_SOFT = re.compile(r'(?m)^\s*(Exception in thread "|Caused by: [\w.$]+(?:Exception|Error)\b)')
+JAVA_RUN = re.compile(r"""(?:^|[\s/\\"'&;|(])(?:java|javac|javaw)(?:\.exe)?["'\s]|gradlew""")
 AUDIT_CMD = re.compile(r"scan_fail\.py|classify\.py|compare\.py|show\.py|rows\.json|final\.json|summary\.json")
 
 BUILTIN = [
@@ -135,7 +139,8 @@ def classify(r, extra):
                 return cat
         elif re.search(pat, t if where == "out" else cmd):
             return cat
-    if not strong and not SOFT.search(t):
+    java_run = bool(JAVA_SOFT.search(t) and JAVA_RUN.search(cmd))
+    if not strong and not SOFT.search(t) and not java_run:
         return "NOISE pattern text inside successful output"
     if not strong and AUDIT_CMD.search(cmd):
         return "NOISE meta (the audit scripts or old audit output printed again)"
@@ -189,6 +194,8 @@ def classify(r, extra):
         return "EXPECTED genuine negative test result (an offline check caught a real mismatch)"
     if re.search(r"caution: filename not matched|Exit code 11", t):
         return "EXPECTED unzip: member not in jar (probe)"
+    if java_run:
+        return "java: uncaught exception in program output"
     if tool == "PowerShell" and re.search(r"Compilation failed|:compile\w* FAILED|crash report has been saved", t):
         return "java/gradle: compile failed or crash (PowerShell)"
     if tool == "PowerShell":

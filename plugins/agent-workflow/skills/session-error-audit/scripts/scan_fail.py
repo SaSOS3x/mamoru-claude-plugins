@@ -46,7 +46,8 @@ for _s in (sys.stdout, sys.stderr):  # cp1251 consoles on Windows must not break
 PATTERNS = ["Traceback", "SyntaxError", "unexpected EOF", "UnicodeEncodeError", "UnicodeDecodeError",
             "No such file", "command not found", "cannot access", "not found", "Permission denied", "denied",
             "timed out", "InputValidationError", "File has not been read", "changed on disk",
-            "String to replace not found", "CRLF", "delimited by end-of-file"]
+            "String to replace not found", "CRLF", "delimited by end-of-file",
+            "Exception in thread", "Caused by: "]  # Java: a program whose exit code was lost (| tail, ;)
 EXIT_RE = re.compile(r"^\s*Exit code (-?\d+)")
 TS_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:[.,](\d{1,9}))?)?)?\s*"
                    r"(Z|[+-]\d{2}(?::?\d{2})?)?$", re.I)
