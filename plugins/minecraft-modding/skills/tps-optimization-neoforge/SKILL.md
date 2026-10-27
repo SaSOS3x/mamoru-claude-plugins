@@ -78,6 +78,14 @@ versions. Passages marked "In the DeceasedCraft port" are examples of the method
   for minutes) and nothing else heavy on the PC (builds, other agents' runs; Space Journey 2026-10-16: the same computation took
   147.9 s alone and 200.1 s next to review agents). Client FPS: the same spot, one factor off at a time, several F3 readings per
   step (5-25 there); a number from another dimension or another world is no baseline.
+- A method's share of a thread in the profile is the ceiling of what fixing it gives that thread: removing 4% of the server
+  thread lifts TPS by about 4% at most, not by 25%. Shares of different threads do not add up: the thread that limits the work
+  sets the ceiling (the server thread for TPS; the C2ME workers for Chunky speed while the server thread idles; in a flight that
+  waits for the chunk under the player, the speed of generation). Measure the baseline 3+ times: one run cannot show an
+  effect smaller than the spread of the baseline, and a run that beats the ceiling is noise until repeated (or the switch
+  changed more than the profiled method - profile that variant too). Sengoku Jidai World 2026-10-27, flight over a new world:
+  baseline TPS 7.2-7.8 (3 runs), one run with the feature switched off 9.6; the fix of the same 4% gave 7.5 while the profile
+  showed the chain gone.
 - No spark (e.g. a dev client): JFR on the live JVM, `jcmd <pid> JFR.start settings=profile`, then
   `jcmd <pid> JFR.dump filename=<f>.jfr` while it runs; the `jdk.ThreadCPULoad` events give the CPU share per thread (the render
   thread is named `main` there).
@@ -160,15 +168,21 @@ versions. Passages marked "In the DeceasedCraft port" are examples of the method
 - `Level.isLoaded(pos)` / `hasChunkAt` means "the chunk has a FULL ticket", not "the chunk is ready" (MC 1.21.1). A tick handler
   that checks it and then calls `getBlockState` makes the server generate the chunk synchronously. Example: Sengoku Jidai 2.1.5
   `WarmWaterSystem.meltIceNearMagma` (every 20 ticks, 6 random spots within 8 blocks of each player): 11% of the server thread in
-  a flight over generated land, 4% over a new world; with `warmWaterEnabled=false` the flight TPS rose from 7.5 to 9.6 (one run). The
-  non-blocking check is `level.getChunkSource().getChunkNow(x >> 4, z >> 4) != null`.
+  a flight over generated land, 4% over a new world. The non-blocking check is
+  `level.getChunkSource().getChunkNow(x >> 4, z >> 4) != null`; a mixin with it (`@WrapOperation` on that `isLoaded` and on
+  `getBlockState` in `isNearMagmaBlock`) removed the chain from the profile, and the flight TPS stayed within the baseline
+  spread (section 1: a 4% ceiling).
 - A world generation step that gets slower as the session goes on: a global registry walked for every noise sample. Sengoku
   Jidai 2.1.5 `AdjustableBeardRegistry.computeContribution(x, y, z)` loops over all beard boxes ever added (added in the
   `PoolElementStructurePiece` constructor, at generation and at every load from NBT; cleared only at server start): 16.4% of the
   C2ME workers' own time during a 16 641-chunk Chunky run. Fix shape: an index by chunk, not a config.
 - Bytecode of a Fabric mod loaded through Sinytra Connector with Mojang names: Connector keeps the remapped jar in
   `<game>/.cache/connector/<mod>_mapped_moj_1.21.1.jar` (javap there shows `ServerLevel.isLoaded` instead of
-  `class_3218.method_8477`).
+  `class_3218.method_8477`). Mixins of a NeoForge mod apply to such a mod (Connector 2.0.0-beta.17, 2026-10-27: it sits in the
+  TRANSFORMER layer, `sengoku@2.1.5` in stack traces; a log line from the mixin handler proved it). No Fabric jar on the compile
+  classpath is needed when the handlers use only Minecraft types: `@Mixin(targets = "<class>")` plus MixinExtras
+  `@WrapOperation` (bundled with NeoForge 21.1); depend on the Fabric mod's id with the exact version in `neoforge.mods.toml`
+  (the mixin was written against that bytecode).
 - Event listeners: right bus and side, filter first; `receiveCanceled = true` only when needed.
 - Diagnostics (StackWalker, exceptions for stack traces): once per source (`Set` of seen keys), never per call.
 - Block entities: no tick work while idle; invalid saved block entity data in structure palettes -> strip it in the
@@ -263,5 +277,8 @@ Read them before proposing a step, so as not to repeat one that is already done.
 Sonnet, один слепой судья Sonnet): задача "полёт в новый мир, мод Frontier", 12:15.
 Скрипты spark в `scripts/` с 2026-10-27 (spark_fetch, spark_summary из порта DeceasedCraft, spark_chains из Sengoku Jidai World): тест
 шага 5 с двумя слепыми судьями, без скриптов : со скриптами 13:15 и 14:15 (точность та же, вдвое меньше вызовов и времени).
+Правка 2026-10-27 (доля в профиле как потолок прибавки, тёплая вода без числа одного прогона, миксины в моды Connector): новая задача
+"Chunky, мод Hearthfire" прежний : новый 11:14 и 11:14 (два слепых судьи Sonnet); повтор задачи Frontier против прежнего ответа
+15:15 и 14:15 (не хуже). Открыто: числа проекта из примеров навыка уходят в ответы как ожидание (у всех вариантов).
 Границы: сборки без KubeJS и без большого числа мобов покрыты только разделами 1, 2, 4, 6; версии модов перепроверять.
 История изменений: CHANGELOG.md в папке навыка (что, когда и почему).
